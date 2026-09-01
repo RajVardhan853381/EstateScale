@@ -17,32 +17,46 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  memberships   OrganizationMembership[]
-  accounts      Account[]
-  sessions      Session[]
+  memberships OrganizationMembership[]
+  accounts    Account[]
+  sessions    Session[]
 }
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  status      String   @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  status    String   @default("ACTIVE") // ACTIVE, SUSPENDED, DELETED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  memberships OrganizationMembership[]
+  memberships          OrganizationMembership[]
+  contacts             Contact[]
+  leads                Lead[]
+  pipelines            Pipeline[]
+  pipelineStages       PipelineStage[]
+  leadActivities       LeadActivity[]
+  notes                Note[]
+  tags                 Tag[]
+  aiUsages             AiUsage[]
+  aiAssessments        AiAssessment[]
+  automations          Automation[]
+  automationExecutions AutomationExecution[]
 }
 
 model OrganizationMembership {
   id             String   @id @default(cuid())
   userId         String
   organizationId String
-  role           String   // OWNER, ADMIN, AGENT, STAFF
+  role           String // OWNER, ADMIN, AGENT, STAFF
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  Lead         Lead[]
+  LeadActivity LeadActivity[]
+  Note         Note[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -83,4 +97,247 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  FOLLOW_UP
+  APPOINTMENT_BOOKED
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum LeadActivityType {
+  CREATED
+  UPDATED
+  ASSIGNED
+  STATUS_CHANGED
+  NOTE_ADDED
+  TAG_ADDED
+  TAG_REMOVED
+  CONTACTED
+  FOLLOW_UP
+  APPOINTMENT
+  SYSTEM
+}
+
+model Contact {
+  id             String   @id @default(cuid())
+  organizationId String
+  firstName      String?
+  lastName       String?
+  email          String?
+  phone          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+model Lead {
+  id              String  @id @default(cuid())
+  organizationId  String
+  contactId       String?
+  assignedUserId  String?
+  pipelineId      String?
+  pipelineStageId String?
+
+  source       String?
+  status       LeadStatus @default(NEW)
+  score        Int?
+  intent       String?
+  budget       Float?
+  location     String?
+  propertyType String?
+  timeline     String?
+
+  notesText String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization  Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  contact       Contact?                @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignedUser  OrganizationMembership? @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  pipeline      Pipeline?               @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  pipelineStage PipelineStage?          @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
+
+  activities           LeadActivity[]
+  notes                Note[]
+  tags                 LeadTag[]
+  aiAssessments        AiAssessment[]
+  automationExecutions AutomationExecution[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@index([organizationId, assignedUserId])
+  @@index([organizationId, source])
+  @@index([organizationId, pipelineStageId])
+}
+
+model Pipeline {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stages       PipelineStage[]
+  leads        Lead[]
+
+  @@index([organizationId])
+}
+
+model PipelineStage {
+  id             String   @id @default(cuid())
+  organizationId String
+  pipelineId     String
+  name           String
+  order          Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pipeline     Pipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+
+  @@index([organizationId, pipelineId, order])
+}
+
+model LeadActivity {
+  id             String           @id @default(cuid())
+  organizationId String
+  leadId         String
+  userId         String?
+  type           LeadActivityType
+  description    String
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead                    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user         OrganizationMembership? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, leadId, createdAt])
+}
+
+model Note {
+  id             String   @id @default(cuid())
+  organizationId String
+  leadId         String
+  userId         String?
+  content        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead                    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user         OrganizationMembership? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, leadId, createdAt])
+}
+
+model Tag {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        LeadTag[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, name])
+}
+
+model LeadTag {
+  leadId String
+  tagId  String
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, tagId])
+  @@index([leadId])
+  @@index([tagId])
+}
+
+model AiUsage {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String
+  model          String
+  operation      String
+  inputTokens    Int?
+  outputTokens   Int?
+  estimatedCost  Float?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model AiAssessment {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  leadId              String
+  intent              String?
+  qualificationStatus String?
+  qualificationReason String?
+  score               Int?
+  scoreReasoning      String?
+  suggestedResponse   String?
+  model               String
+  createdAt           DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, leadId, createdAt])
+}
+
+model Automation {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  enabled        Boolean  @default(true)
+  triggerType    String // LEAD_CREATED, LEAD_UPDATED, AI_ANALYSIS_COMPLETED
+  actionType     String // AI_LEAD_ANALYSIS, AI_LEAD_RESPONSE_GENERATION
+  configuration  Json? // Optional specific triggers parameters
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  automationExecutions AutomationExecution[]
+
+  @@index([organizationId, triggerType, enabled])
+}
+
+model AutomationExecution {
+  id             String    @id @default(cuid())
+  organizationId String
+  automationId   String
+  leadId         String
+  status         String // PENDING, PROCESSING, COMPLETED, FAILED
+  startedAt      DateTime?
+  completedAt    DateTime?
+  error          String?   @db.Text
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  automation   Automation   @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, leadId, automationId])
 }

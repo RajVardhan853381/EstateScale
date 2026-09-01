@@ -15,3 +15,13 @@ EstateScale utilizes a **Modular Monolith** architecture.
 - **Multi-Tenancy**: Shared database and shared schema approach (`organizationId`).
 - **Organization Routing**: Users access their tenant data via `/org/[slug]/dashboard`.
 - **Centralized Authorization**: Authorization is enforced entirely server-side.
+
+## AI Lead Engine
+- **Provider Abstraction**: Interacts safely with AI providers (OpenAI) via internal domain wrappers and the Vercel AI SDK.
+- **Cost Controls & Usage Tracking**: Tracks estimated cost and token usage per-tenant via the `AiUsage` model.
+- **Prompt Injection Defense**: Untrusted user contexts are explicitly physically separated from privileged System Instructions inside prompt construction mechanisms.
+
+## Automation & Background Worker Engine
+- **Event Bus**: Asynchronous decoupling of frontend requests using an in-memory `DomainEvent` dispatcher.
+- **Redis & BullMQ**: Heavy or external processing tasks (like AI integrations) are pushed to a Redis queue reliably executing inside a disconnected worker context.
+- **Idempotency & Recursion**: Automation limits recursive triggers via transactional database execution guards. Executions trace deterministic UUID structures to enforce exactly-once behavioral execution states even under redundant dispatch conditions.

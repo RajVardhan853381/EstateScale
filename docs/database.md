@@ -10,6 +10,9 @@ The database employs a **Shared Database, Shared Schema** strategy. Tenant isola
 - **User**: Represents a global authenticated individual.
 - **Organization**: The tenant boundary.
 - **OrganizationMembership**: The junction table connecting `User` and `Organization`.
+- **Contact / Lead**: The core multi-tenant CRM relationship entities defining pipelines and attributes.
+- **AiAssessment / AiUsage**: Retains non-intrusive metadata regarding analytical reasoning and token expenditures safely isolated per lead.
+- **Automation / AutomationExecution**: Decouples automated triggers safely inside deterministic states tracing completion bounds accurately.
 
 ## Indexing Strategy
 Composite indexes utilizing `organizationId` are crucial.
