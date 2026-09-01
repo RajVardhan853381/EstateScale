@@ -22,6 +22,6 @@ EstateScale utilizes a **Modular Monolith** architecture.
 - **Prompt Injection Defense**: Untrusted user contexts are explicitly physically separated from privileged System Instructions inside prompt construction mechanisms.
 
 ## Automation & Background Worker Engine
-- **Event Bus**: Asynchronous decoupling of frontend requests using an in-memory `DomainEvent` dispatcher.
+- **Event Bus**: Asynchronous decoupling of frontend requests using an in-memory `DomainEvent` dispatcher. Note: True PostgreSQL transactional outbox mechanisms guarding against absolute event loss upon crash between commit and dispatch are intentionally deferred natively to Phase 5 or production hardening cycles.
 - **Redis & BullMQ**: Heavy or external processing tasks (like AI integrations) are pushed to a Redis queue reliably executing inside a disconnected worker context.
 - **Idempotency & Recursion**: Automation limits recursive triggers via transactional database execution guards. Executions trace deterministic UUID structures to enforce exactly-once behavioral execution states even under redundant dispatch conditions.
