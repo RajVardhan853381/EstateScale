@@ -1,34 +1,19 @@
-import { evaluateAutomationsForEvent } from "@/lib/automations/engine";
-import { z } from "zod";
-import crypto from "crypto";
+import { prisma } from "../prisma";
+import { enqueueAutomationJob } from "../queue/producer";
+import { evaluateAutomationsForEvent } from "../automations/engine";
 
-export const EventTypeSchema = z.enum(["LEAD_CREATED", "LEAD_UPDATED", "AI_ANALYSIS_COMPLETED", "LEAD_STAGE_CHANGED"]);
-export type EventType = z.infer<typeof EventTypeSchema>;
+export type DomainEvent = {
+    eventId: string;
+    organizationId: string;
+    leadId: string;
+    type: "LEAD_CREATED" | "LEAD_UPDATED" | "MESSAGE_RECEIVED" | "MESSAGE_SENT" | "AI_ANALYSIS_COMPLETED" | "LEAD_STAGE_CHANGED";
+    metadata?: Record<string, unknown>;
+};
 
-export const DomainEventSchema = z.object({
-    eventId: z.string().uuid().default(() => crypto.randomUUID()),
-    type: EventTypeSchema,
-    organizationId: z.string(),
-    leadId: z.string(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
-});
-
-export type DomainEvent = z.infer<typeof DomainEventSchema>;
-
-// In-memory application event bus.
-// Emits internal non-blocking events securely isolated per organization context.
-export async function publishDomainEvent(eventData: Omit<DomainEvent, "eventId">) {
+export async function publishDomainEvent(event: DomainEvent) {
     try {
-        const validatedEvent = DomainEventSchema.parse({
-            ...eventData,
-            eventId: crypto.randomUUID()
-        });
-
-        // Fire-and-forget: offload automation processing asynchronously so the primary CRM mutation isn't stalled.
-        evaluateAutomationsForEvent(validatedEvent).catch((err: unknown) => {
-            console.error(`[EventBus] Error evaluating automations for event ${validatedEvent.type}`, err);
-        });
-    } catch (err) {
-        console.error(`[EventBus] Failed to publish event`, err);
+        await evaluateAutomationsForEvent(event);
+    } catch (error) {
+        console.error(`[EventBus] Critical dispatch failure:`, error);
     }
 }

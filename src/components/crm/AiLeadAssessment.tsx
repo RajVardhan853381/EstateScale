@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { triggerLeadAnalysis } from "@/lib/actions/ai";
+import { requestAiAnalysis } from "@/lib/actions/ai";
 import { Sparkles, Loader2 } from "lucide-react";
 
 import { Prisma } from "@prisma/client";
@@ -27,7 +27,7 @@ export function AiLeadAssessment({
         setIsAnalyzing(true);
         setError(null);
         try {
-            const res = await triggerLeadAnalysis(slug, leadId);
+            const res = await requestAiAnalysis(slug, leadId);
             if (!res.success) {
                 setError(res.error || "Failed to queue analysis.");
             }

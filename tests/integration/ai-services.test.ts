@@ -67,8 +67,9 @@ describe("AI Core Service Integrations", () => {
             data: { organizationId: orgA.id, contactId: contactA.id, budget: 100, notesText: "Buyer looking for homes in Dallas." }
         });
 
+        const contactB = await prisma.contact.create({ data: { organizationId: orgB.id, email: "b@b.com" } });
         leadB = await prisma.lead.create({
-            data: { organizationId: orgB.id, budget: 100, notesText: "Just testing." }
+            data: { organizationId: orgB.id, contactId: contactB.id, budget: 100, notesText: "Just testing." }
         });
     });
 

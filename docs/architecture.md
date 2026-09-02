@@ -25,3 +25,9 @@ EstateScale utilizes a **Modular Monolith** architecture.
 - **Event Bus**: Asynchronous decoupling of frontend requests using an in-memory `DomainEvent` dispatcher. Note: True PostgreSQL transactional outbox mechanisms guarding against absolute event loss upon crash between commit and dispatch are intentionally deferred natively to Phase 5 or production hardening cycles.
 - **Redis & BullMQ**: Heavy or external processing tasks (like AI integrations) are pushed to a Redis queue reliably executing inside a disconnected worker context.
 - **Idempotency & Recursion**: Automation limits recursive triggers via transactional database execution guards. Executions trace deterministic UUID structures to enforce exactly-once behavioral execution states even under redundant dispatch conditions.
+
+## Communication Engine
+- **Provider Abstraction**: Communicates with external vendors (e.g., Twilio) via an internal `CommunicationProvider` interface, supporting safe mocks for development/testing.
+- **Manual vs Automated Routing Boundaries**: The system explicitly enforces structural isolation between UI-driven user SMS actions (`MANUAL_SMS`) tracking against standard CRM Message models and background loop AI texts (`AUTOMATED_SMS`) running inside trace-locked `AutomationExecution` states.
+- **Webhook Processing**: Inbound SMS webhooks and status callbacks strictly validate provider signatures (e.g., Twilio signature validation). Unmatched numbers attempt to auto-link to existing tenant contacts or leads securely.
+- **Opt-Out Compliance**: Acknowledges 'STOP' requests and updates `Conversation` opt-out status gracefully to satisfy carrier compliance rules without crashing workflows.

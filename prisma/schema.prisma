@@ -42,6 +42,9 @@ model Organization {
   aiAssessments        AiAssessment[]
   automations          Automation[]
   automationExecutions AutomationExecution[]
+  conversations        Conversation[]
+  messages             Message[]
+  communicationConfigs OrganizationCommunicationConfig[]
 }
 
 model OrganizationMembership {
@@ -136,6 +139,8 @@ model Contact {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   leads        Lead[]
 
+  conversations Conversation[]
+
   @@index([organizationId, email])
   @@index([organizationId, phone])
 }
@@ -173,6 +178,8 @@ model Lead {
   tags                 LeadTag[]
   aiAssessments        AiAssessment[]
   automationExecutions AutomationExecution[]
+
+  conversations Conversation[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
@@ -306,6 +313,25 @@ model AiAssessment {
   @@index([organizationId, leadId, createdAt])
 }
 
+enum AutomationTriggerType {
+  LEAD_CREATED
+  LEAD_STATUS_CHANGED
+  TAG_ADDED
+  MANUAL
+  SCHEDULED
+  MESSAGE_RECEIVED
+}
+
+enum AutomationActionType {
+  SEND_SMS
+  SEND_EMAIL
+  UPDATE_LEAD_STATUS
+  ADD_TAG
+  ASSIGN_USER
+  AI_LEAD_ANALYSIS
+  AI_LEAD_RESPONSE_GENERATION
+}
+
 model Automation {
   id             String   @id @default(cuid())
   organizationId String
@@ -340,4 +366,83 @@ model AutomationExecution {
   lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, leadId, automationId])
+}
+
+// --- PHASE 5: COMMUNICATION ENGINE ---
+
+model Conversation {
+  id             String             @id @default(cuid())
+  organizationId String
+  leadId         String?
+  contactId      String
+  channel        String             @default("SMS")
+  status         ConversationStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contact      Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@index([organizationId, leadId])
+  @@index([organizationId, contactId])
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  OPT_OUT
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  organizationId String
+  conversationId String
+  direction      MessageDirection
+  status         MessageStatus    @default(QUEUED)
+  body           String
+  from           String
+  to             String
+  externalId     String?
+  provider       String           @default("TWILIO")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  metadata       Json?
+  error          String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, conversationId, createdAt])
+  @@index([organizationId, externalId])
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  RECEIVED
+}
+
+model OrganizationCommunicationConfig {
+  id             String   @id @default(cuid())
+  organizationId String
+  provider       String   @default("TWILIO")
+  phoneNumber    String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, phoneNumber])
+  @@index([phoneNumber])
 }

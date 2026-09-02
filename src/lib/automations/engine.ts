@@ -1,79 +1,63 @@
-import { prisma } from "@/lib/prisma";
-import { DomainEvent } from "@/lib/events/bus";
-import { enqueueAutomationJob } from "@/lib/queue/producer";
-import { Automation } from "@prisma/client";
+import { prisma } from "../prisma";
+import { enqueueAutomationJob } from "../queue/producer";
+import { DomainEvent } from "../events/bus";
 
 export async function evaluateAutomationsForEvent(event: DomainEvent) {
-    const { type, organizationId, leadId, eventId } = event;
+    try {
+        console.log(`[AutomationEngine] Evaluating event ${event.type} for Lead ${event.leadId}`);
 
-    // 1. Fetch enabled automations for this tenant mapping to this trigger.
-    const automations = await prisma.automation.findMany({
-        where: {
-            organizationId,
-            triggerType: type,
-            enabled: true,
-        }
-    });
-
-    if (!automations.length) return;
-
-    // 2. Loop Protection & Deduplication
-    for (const automation of automations) {
-        await processAutomationTrigger(organizationId, leadId, eventId, automation);
-    }
-}
-
-async function processAutomationTrigger(organizationId: string, leadId: string, eventId: string, automation: Automation) {
-    // Avoid triggering identical automations in rapid infinite loops safely natively at DB transaction level
-    const result = await prisma.$transaction(async (tx) => {
-        // Idempotency: Did we already execute this specific automation for this exact event?
-        // Note: For true distributed idempotency we create a deterministic executionId hash.
-        const executionId = `${organizationId}-${automation.id}-${leadId}-${eventId}`;
-
-        const priorExecution = await tx.automationExecution.findUnique({
-            where: { id: executionId }
-        });
-
-        if (priorExecution) {
-            // Drop silently, idempotency protection triggered.
-            return null;
-        }
-
-        // Loop Protection: Avoid firing >5 times a day for the same lead and automation.
-        const loopCount = await tx.automationExecution.count({
+        const automations = await prisma.automation.findMany({
             where: {
-                organizationId,
-                leadId,
-                automationId: automation.id,
-                createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+                organizationId: event.organizationId,
+                enabled: true,
+                triggerType: event.type
             }
         });
 
-        if (loopCount >= 5) {
-            console.warn(`[AutomationEngine] Loop protection engaged for lead ${leadId} on automation ${automation.id}`);
-            return null;
+        if (automations.length === 0) return;
+
+        for (const automation of automations) {
+            await prisma.$transaction(async (tx) => {
+                const executions = await tx.automationExecution.findMany({
+                    where: {
+                        organizationId: event.organizationId,
+                        automationId: automation.id,
+                        leadId: event.leadId,
+                    },
+                    orderBy: { createdAt: "desc" },
+                    take: 1
+                });
+
+                if (executions.length > 0) {
+                    const lastExecution = executions[0];
+                    if (Date.now() - lastExecution.createdAt.getTime() < 300000) {
+                        return; // Prevent loops
+                    }
+                }
+
+                const execution = await tx.automationExecution.create({
+                    data: {
+                        organizationId: event.organizationId,
+                        automationId: automation.id,
+                        leadId: event.leadId,
+                        status: "PENDING"
+                    }
+                });
+
+                let actionType: "AUTOMATED_SMS" | "MANUAL_SMS" | "AI_LEAD_ANALYSIS" | "AI_LEAD_RESPONSE_GENERATION" = "AI_LEAD_ANALYSIS";
+                if (automation.actionType === "AI_LEAD_RESPONSE_GENERATION") actionType = "AI_LEAD_RESPONSE_GENERATION";
+                if (automation.actionType === "SEND_SMS") actionType = "AUTOMATED_SMS";
+
+                await enqueueAutomationJob({
+                    organizationId: event.organizationId,
+                    leadId: event.leadId,
+                    actionType,
+                    executionId: execution.id,
+                    eventId: event.eventId
+                } as Parameters<typeof enqueueAutomationJob>[0]);
+            });
         }
-
-        // Initialize execution status safely.
-        return await tx.automationExecution.create({
-            data: {
-                id: executionId,
-                organizationId,
-                automationId: automation.id,
-                leadId,
-                status: "PENDING"
-            }
-        });
-    });
-
-    if (result) {
-        // 3. Dispatch to BullMQ for actual delayed execution outside the request scope.
-        await enqueueAutomationJob({
-            organizationId,
-            leadId,
-            actionType: automation.actionType,
-            executionId: result.id,
-            eventId
-        });
+    } catch (error) {
+        console.error(`[AutomationEngine] Evaluation failed:`, error);
     }
 }

@@ -1,9 +1,12 @@
 import { getLead } from "@/lib/services/leads";
 import { listLeadActivities } from "@/lib/services/activities";
+import { prisma } from "@/lib/prisma";
+import { requireOrganizationMember } from "@/lib/auth/authorization";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LeadActivityTimeline } from "@/components/crm/LeadActivityTimeline";
 import { AiLeadAssessment } from "@/components/crm/AiLeadAssessment";
+import { ConversationThread } from "@/components/crm/ConversationThread";
 import { notFound } from "next/navigation";
 
 export default async function LeadDetailPage(props: {
@@ -12,10 +15,24 @@ export default async function LeadDetailPage(props: {
   const params = await props.params;
   let lead: Awaited<ReturnType<typeof getLead>>;
   let activities: Awaited<ReturnType<typeof listLeadActivities>>;
+  let messages: { id: string; body: string; direction: "INBOUND" | "OUTBOUND"; status: string; createdAt: Date; }[] = [];
+  let isOptedOut = false;
 
   try {
+    const { organization } = await requireOrganizationMember(params.slug);
     lead = await getLead(params.slug, params.leadId);
     activities = await listLeadActivities(params.slug, params.leadId);
+
+    const conversation = await prisma.conversation.findFirst({
+        where: { organizationId: organization.id, leadId: lead.id },
+        include: { messages: { orderBy: { createdAt: 'asc' } } }
+    });
+
+    if (conversation) {
+        messages = conversation.messages;
+        isOptedOut = conversation.status === "OPT_OUT";
+    }
+
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "";
     if (msg.includes("signin") || msg.includes("NEXT_REDIRECT")) {
@@ -40,6 +57,13 @@ export default async function LeadDetailPage(props: {
                     slug={params.slug}
                     leadId={lead.id}
                     assessment={lead.aiAssessments?.[0]}
+                />
+
+                <ConversationThread
+                    organizationSlug={params.slug}
+                    leadId={lead.id}
+                    messages={messages}
+                    isOptedOut={isOptedOut}
                 />
 
                 <Card>

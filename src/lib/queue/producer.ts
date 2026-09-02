@@ -1,14 +1,29 @@
 import { Queue } from "bullmq";
 import { redisClient } from "./client";
 
-// Define strict job payload typing to ensure authorization requirements
-export type AutomationJobPayload = {
+export type BaseJobPayload = {
     organizationId: string;
     leadId: string;
-    actionType: string;
-    executionId: string; // Used for Idempotency logic natively tied to execution ID tracking
-    eventId: string; // Used for observability and lineage
+    eventId: string;
 };
+
+export type AutomatedSmsJobPayload = BaseJobPayload & {
+    actionType: "AUTOMATED_SMS";
+    executionId: string; // Refers to AutomationExecution.id
+};
+
+export type ManualSmsJobPayload = BaseJobPayload & {
+    actionType: "MANUAL_SMS";
+    messageId: string; // Refers to Message.id
+};
+
+export type AiAnalysisJobPayload = BaseJobPayload & {
+    actionType: "AI_LEAD_ANALYSIS" | "AI_LEAD_RESPONSE_GENERATION";
+    executionId: string;
+};
+
+// Discriminated union for worker routing safely
+export type AutomationJobPayload = AutomatedSmsJobPayload | ManualSmsJobPayload | AiAnalysisJobPayload;
 
 export const AUTOMATION_QUEUE_NAME = "automation-engine";
 
@@ -18,11 +33,13 @@ export const automationQueue = new Queue<AutomationJobPayload>(AUTOMATION_QUEUE_
 });
 
 export async function enqueueAutomationJob(payload: AutomationJobPayload, delayMs: number = 0) {
+    const jobId = payload.actionType === "MANUAL_SMS" ? payload.messageId : payload.executionId;
+
     return automationQueue.add(
         payload.actionType,
         payload,
         {
-            jobId: payload.executionId, // BullMQ ignores exact duplicate jobIds, providing infrastructure-level idempotency
+            jobId, // BullMQ ignores exact duplicate jobIds, providing infrastructure-level idempotency
             delay: delayMs,
             attempts: 3,
             backoff: {
