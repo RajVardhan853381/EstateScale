@@ -119,7 +119,7 @@ Source: ${lead.source || "Unknown"}
             data: {
                 organizationId: organization.id,
                 leadId: lead.id,
-                userId: membershipId, // Will be null if triggered by automated system worker
+                userId: membershipId || null, // Will be null if triggered by automated system worker
                 type: LeadActivityType.SYSTEM,
                 description: `AI Lead Assessment completed (Score: ${aiResult.score.score})`
             }

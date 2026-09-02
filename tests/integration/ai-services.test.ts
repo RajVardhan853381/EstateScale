@@ -42,6 +42,22 @@ describe("AI Core Service Integrations", () => {
 
     beforeAll(async () => {
         await prisma.organization.deleteMany();
+        await prisma.message.deleteMany();
+        await prisma.conversation.deleteMany();
+        await prisma.organizationCommunicationConfig.deleteMany();
+        await prisma.leadActivity.deleteMany();
+        await prisma.automationExecution.deleteMany();
+        await prisma.automation.deleteMany();
+        await prisma.aiAssessment.deleteMany();
+        await prisma.aiUsage.deleteMany();
+        await prisma.lead.deleteMany();
+        await prisma.pipelineStage.deleteMany();
+        await prisma.pipeline.deleteMany();
+        await prisma.contact.deleteMany();
+        await prisma.organizationMembership.deleteMany();
+        await prisma.organization.deleteMany();
+        await prisma.organizationMembership.deleteMany();
+        await prisma.organization.deleteMany();
         await prisma.user.deleteMany();
 
         userA = await prisma.user.create({ data: { email: "ai-tester@test.com", name: "AI User" } });
@@ -74,6 +90,22 @@ describe("AI Core Service Integrations", () => {
     });
 
     afterAll(async () => {
+        await prisma.organization.deleteMany();
+        await prisma.message.deleteMany();
+        await prisma.conversation.deleteMany();
+        await prisma.organizationCommunicationConfig.deleteMany();
+        await prisma.leadActivity.deleteMany();
+        await prisma.automationExecution.deleteMany();
+        await prisma.automation.deleteMany();
+        await prisma.aiAssessment.deleteMany();
+        await prisma.aiUsage.deleteMany();
+        await prisma.lead.deleteMany();
+        await prisma.pipelineStage.deleteMany();
+        await prisma.pipeline.deleteMany();
+        await prisma.contact.deleteMany();
+        await prisma.organizationMembership.deleteMany();
+        await prisma.organization.deleteMany();
+        await prisma.organizationMembership.deleteMany();
         await prisma.organization.deleteMany();
         await prisma.user.deleteMany();
     });
