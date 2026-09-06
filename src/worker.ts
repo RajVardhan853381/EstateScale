@@ -1,5 +1,3 @@
-import { logger } from './lib/logger';
-import { metrics } from './lib/logger/metrics';
 import { Worker, Job } from 'bullmq';
 import {
   AUTOMATION_QUEUE_NAME,
@@ -13,7 +11,7 @@ import { prisma } from './lib/prisma';
 import { analyzeLead } from './lib/services/ai';
 import { executeSendSms } from './lib/services/communication';
 
-logger.info('🚀 Starting EstateScale Background Worker process...');
+console.log('🚀 Starting EstateScale Background Worker process...');
 
 const processJob = async (job: Job<AutomationJobPayload>) => {
   const payload = job.data;
@@ -141,35 +139,15 @@ const worker = new Worker(AUTOMATION_QUEUE_NAME, processJob, {
 });
 
 worker.on('completed', (job) => {
-  const jobMetaSuccess = (job.data as AutomationJobPayload & { _meta?: { correlationId?: string; outboxEventId?: string } })._meta || {};
-        metrics.increment('queue.jobs.completed', 1, { queue: AUTOMATION_QUEUE_NAME, jobName: job.name });
-        metrics.timing('queue.job.duration_ms', Date.now() - job.timestamp, { queue: AUTOMATION_QUEUE_NAME, jobName: job.name });
-        logger.info({
-            jobId: job.id,
-            jobName: job.name,
-            organizationId: job.data.organizationId,
-            correlationId: jobMetaSuccess.correlationId,
-            outboxEventId: jobMetaSuccess.outboxEventId,
-            duration: Date.now() - job.timestamp
-        }, 'Job completed successfully');
+  console.log(`✅ [Worker] Job ${job.id} completed successfully.`);
 });
 
 worker.on('failed', (job, err) => {
-  const jobMetaErr = (job?.data as (AutomationJobPayload & { _meta?: { correlationId?: string; outboxEventId?: string } }) | undefined)?._meta || {};
-        metrics.increment('queue.jobs.failed', 1, { queue: AUTOMATION_QUEUE_NAME, jobName: job?.name, errorType: err?.name });
-        logger.error({
-            err,
-            jobId: job?.id,
-            jobName: job?.name,
-            organizationId: job?.data?.organizationId,
-            correlationId: jobMetaErr.correlationId,
-            outboxEventId: jobMetaErr.outboxEventId,
-            duration: job ? Date.now() - job.timestamp : undefined
-        }, 'Job failed with error');
+  console.error(`❌ [Worker] Job ${job?.id} failed with error: ${err.message}`);
 });
 
 const shutdown = async () => {
-  logger.info('Shutting down worker gracefully...');
+  console.log('Shutting down worker gracefully...');
   await worker.close();
   await redisClient.quit();
   process.exit(0);

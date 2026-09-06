@@ -1,4 +1,5 @@
 'use server';
+
 import { requireOrganizationMember } from '@/lib/auth/authorization';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';

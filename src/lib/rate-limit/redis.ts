@@ -1,4 +1,3 @@
-import { metrics } from '../logger/metrics';
 import { redisClient } from '@/lib/queue/client';
 
 export class RateLimitExceededError extends Error {

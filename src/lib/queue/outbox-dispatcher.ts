@@ -1,5 +1,3 @@
-import { logger } from '@/lib/logger';
-import { metrics } from '@/lib/logger/metrics';
 import { prisma } from '../prisma';
 import { enqueueAutomationJob, AutomationJobPayload } from './producer';
 
@@ -41,14 +39,6 @@ export async function dispatchOutboxEvents(batchSize: number = 50) {
         // AT-LEAST-ONCE Delivery: Enqueue to Redis
         // Cast from JSON payload strictly back into expected Queue shape
         const payload = event.payload as unknown as AutomationJobPayload;
-        const safeMeta = {
-          correlationId: event.correlationId || undefined,
-          organizationId: event.organizationId,
-          outboxEventId: event.id,
-          automationExecutionId: 'executionId' in payload ? payload.executionId : undefined,
-          messageId: 'messageId' in payload ? payload.messageId : undefined,
-        };
-        (payload as AutomationJobPayload & { _meta?: { correlationId?: string; organizationId?: string; outboxEventId?: string; automationExecutionId?: string; messageId?: string; } })._meta = safeMeta;
 
         await enqueueAutomationJob(payload);
 
@@ -64,8 +54,7 @@ export async function dispatchOutboxEvents(batchSize: number = 50) {
       } catch (err: unknown) {
         // Redis enqueue failed or parsing failed
         const msg = err instanceof Error ? err.message : 'Unknown Enqueue Error';
-        metrics.increment('outbox.dispatch.failed', 1, { eventType: event.actionType });
-        logger.error({ eventId: event.id, errMsg: msg, operation: 'outbox_dispatch' }, 'Failed to dispatch event');
+        console.error(`[OutboxDispatcher] Failed to dispatch event ${event.id}: ${msg}`);
 
         // Exponential backoff logic
         const nextAttempt = new Date();
@@ -85,8 +74,7 @@ export async function dispatchOutboxEvents(batchSize: number = 50) {
 
     return events.length;
   } catch (error) {
-    metrics.increment('outbox.poll.failed');
-    logger.error({ err: error, operation: 'outbox_poll' }, 'Critical Polling Failure');
+    console.error(`[OutboxDispatcher] Critical Polling Failure:`, error);
     return 0;
   }
 }
@@ -109,6 +97,6 @@ export async function recoverStaleEvents() {
       },
     });
   } catch (error) {
-    logger.error({ err: error, operation: 'outbox_sweep' }, 'Sweeper Failure');
+    console.error(`[OutboxDispatcher] Sweeper Failure:`, error);
   }
 }

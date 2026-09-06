@@ -116,7 +116,7 @@ describe('Communication Engine Architecture', () => {
     expect(outboxEvent).toBeDefined();
     expect(outboxEvent?.status).toBe('PENDING');
 
-    const payload = outboxEvent?.payload as Record<string, unknown>;
+    const payload = outboxEvent?.payload as any;
     expect(payload.messageId).toBe(message?.id);
   });
 

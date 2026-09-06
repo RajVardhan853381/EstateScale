@@ -459,7 +459,6 @@ enum OutboxEventStatus {
 
 model OutboxEvent {
   id             String            @id @default(cuid())
-  correlationId  String?   @db.VarChar(100)
   organizationId String
   actionType     String
   payload        Json

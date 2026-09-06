@@ -64,7 +64,7 @@ describe('Automation Engine Integration', () => {
     expect(outboxEvent?.status).toBe('PENDING');
 
     // Assert payload accurately holds the enqueueing metadata
-    const payload = outboxEvent?.payload as Record<string, unknown>;
+    const payload = outboxEvent?.payload as any;
     expect(payload.executionId).toBe(execution?.id);
   });
 

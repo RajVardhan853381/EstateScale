@@ -1,5 +1,3 @@
-import { Message } from '@prisma/client';
-import { Organization } from '@prisma/client';
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { POST } from '@/app/api/webhooks/twilio/status/route';
 import { prisma } from '@/lib/prisma';
@@ -10,8 +8,8 @@ vi.stubEnv('NODE_ENV', 'production');
 vi.stubEnv('TWILIO_AUTH_TOKEN', 'mock-secret-token');
 
 describe('Twilio Webhooks - Status Updates', () => {
-  let org: Organization;
-  let message: Message;
+  let org: any;
+  let message: any;
 
   beforeAll(async () => {
     await prisma.organization.deleteMany();

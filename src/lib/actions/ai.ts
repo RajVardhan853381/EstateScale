@@ -1,4 +1,5 @@
 'use server';
+
 import { requireOrganizationMember } from '@/lib/auth/authorization';
 import { publishDomainEvent } from '@/lib/events/bus';
 import { prisma } from '@/lib/prisma';
