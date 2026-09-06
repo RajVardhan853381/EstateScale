@@ -45,6 +45,7 @@ model Organization {
   conversations        Conversation[]
   messages             Message[]
   communicationConfigs OrganizationCommunicationConfig[]
+  outboxEvents         OutboxEvent[]
 }
 
 model OrganizationMembership {
@@ -445,4 +446,33 @@ model OrganizationCommunicationConfig {
 
   @@unique([organizationId, phoneNumber])
   @@index([phoneNumber])
+}
+
+// --- PHASE 6B: TRANSACTIONAL OUTBOX ---
+
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  DISPATCHED
+  FAILED
+}
+
+model OutboxEvent {
+  id             String            @id @default(cuid())
+  correlationId  String?   @db.VarChar(100)
+  organizationId String
+  actionType     String
+  payload        Json
+  status         OutboxEventStatus @default(PENDING)
+  attempts       Int               @default(0)
+  lastError      String?           @db.Text
+  availableAt    DateTime          @default(now())
+  processedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status, availableAt])
 }

@@ -19,7 +19,7 @@ test.describe.serial('Tenant Isolation E2E Tests', () => {
       data: {
         name: 'Organization A',
         slug: 'org-a',
-      }
+      },
     });
 
     // 2. Create Organization B
@@ -27,7 +27,7 @@ test.describe.serial('Tenant Isolation E2E Tests', () => {
       data: {
         name: 'Organization B',
         slug: 'org-b',
-      }
+      },
     });
 
     // 3. Create User A belonging to Organization A
@@ -35,15 +35,15 @@ test.describe.serial('Tenant Isolation E2E Tests', () => {
       data: {
         email: 'usera@example.com',
         name: 'User A',
-      }
+      },
     });
 
     await prisma.organizationMembership.create({
       data: {
         userId: userA.id,
         organizationId: orgA.id,
-        role: 'OWNER'
-      }
+        role: 'OWNER',
+      },
     });
   });
 
@@ -57,7 +57,9 @@ test.describe.serial('Tenant Isolation E2E Tests', () => {
     await prisma.$disconnect();
   });
 
-  test('User from Organization A is blocked from Organization B dashboard when unauthenticated', async ({ page }) => {
+  test('User from Organization A is blocked from Organization B dashboard when unauthenticated', async ({
+    page,
+  }) => {
     await page.goto('/org/org-b/dashboard');
     const contentB = await page.content();
     // Since we aren't logged in, NextAuth throws NEXT_REDIRECT or redirects to /api/auth/signin
@@ -65,8 +67,8 @@ test.describe.serial('Tenant Isolation E2E Tests', () => {
   });
 
   test('Server-side Isolation Logic ensures User A cannot access Organization B', async () => {
-     // We bypass NextAuth and test the actual isolation helper function using User A's context
-     const membershipCheck = await prisma.organizationMembership.findUnique({
+    // We bypass NextAuth and test the actual isolation helper function using User A's context
+    const membershipCheck = await prisma.organizationMembership.findUnique({
       where: {
         userId_organizationId: {
           userId: userA.id,
