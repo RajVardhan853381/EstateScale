@@ -1,31 +1,12 @@
-# EstateScale Database Design
+# Database Architecture
 
-## Database Philosophy
-
-EstateScale relies on **PostgreSQL** as its primary source of truth, utilizing **Prisma ORM**.
-
-## Multi-Tenancy Strategy
-
-The database employs a **Shared Database, Shared Schema** strategy. Tenant isolation is achieved by enforcing a strict `organizationId` foreign key.
-
-## Core Entities
-
-- **User**: Represents a global authenticated individual.
-- **Organization**: The tenant boundary.
-- **OrganizationMembership**: The junction table connecting `User` and `Organization`.
-- **Contact / Lead**: The core multi-tenant CRM relationship entities defining pipelines and attributes.
-- **AiAssessment / AiUsage**: Retains non-intrusive metadata regarding analytical reasoning and token expenditures safely isolated per lead.
-- **Automation / AutomationExecution**: Decouples automated triggers safely inside deterministic states tracing completion bounds accurately.
-- **Conversation / Message**: Models SMS thread exchanges, tracking sender/receiver, external IDs (SIDs), direction (INBOUND/OUTBOUND), and delivery statuses safely scoped per organization.
-- **OrganizationCommunicationConfig**: Safely stores Twilio or external vendor phone numbers securely attached to the tenant. Exposes compliance opt-out properties per number.
-
-## Indexing Strategy
-
-Composite indexes utilizing `organizationId` are crucial.
-
-- `Message`: Indexed on `(organizationId, conversationId, createdAt)` to guarantee quick loading of thread history securely.
-- `Message`: Indexed on `(organizationId, externalId)` for safe fast lookups during webhook status updates.
+## Phase 2 additions
+- **Contact**: Standardized representation of people across leads.
+- **Lead**: Core entity for sales tracking, references Contact, OrganizationMembership (Assignee), and Pipeline Stages.
+- **LeadActivity**: Audit log and timeline history of Lead mutations (status changes, assignments, creation).
+- **Note**: Tenant-scoped unstructured text related to a Lead.
+- **Tag**: Extensible string tagging, unique by name per Organization.
+- **Pipeline & PipelineStage**: Defines the sales process. The system ensures a default pipeline via safe, idempotent scripts.
 
 ## Tenant Isolation
-
-Every query affecting or retrieving tenant data MUST include a `WHERE organizationId = ?` clause.
+All major domain entities strictly declare `organizationId`. Isolation is enforced inside server actions utilizing `requireOrganizationMember` prior to Prisma queries.

@@ -1,73 +1,75 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { prisma } from '@/lib/prisma';
-import { Organization, User } from '@prisma/client';
-import { getLead } from '@/lib/services/leads';
-// Intercepting NextAuth module which triggers the next/server issue inside Node environment
-vi.mock('next-auth', () => ({
-  default: () => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() }),
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { prisma } from '../../src/lib/prisma';
+import { getLead } from '../../src/lib/services/leads';
+import { getContact } from '../../src/lib/services/contacts';
+import { Organization, Lead, Contact } from '@prisma/client';
+
+// Mock authorization
+vi.mock('../../src/lib/auth/authorization', () => ({
+  requireOrganizationMember: vi.fn().mockImplementation(async (slug: string) => {
+    const org = await prisma.organization.findUnique({ where: { slug } });
+    if (!org) throw new Error('NOT_FOUND');
+    return {
+      organization: org,
+      user: { id: 'test-user-id' },
+      membership: { id: 'test-membership-id', role: 'ADMIN' },
+    };
+  }),
 }));
-import * as authorization from '@/lib/auth/authorization';
 
 describe('Tenant Isolation - CRM', () => {
   let orgA: Organization;
   let orgB: Organization;
-  let userA: User;
-  let userB: User;
+  let leadA: Lead;
+  let leadB: Lead;
+  let contactA: Contact;
+  let contactB: Contact;
 
   beforeAll(async () => {
     // Clear DB
     await prisma.organization.deleteMany();
-    await prisma.user.deleteMany();
-
-    userA = await prisma.user.create({ data: { email: 'a@test.com', name: 'User A' } });
-    userB = await prisma.user.create({ data: { email: 'b@test.com', name: 'User B' } });
 
     orgA = await prisma.organization.create({
-      data: {
-        name: 'Org A',
-        slug: 'org-a',
-        memberships: { create: { userId: userA.id, role: 'OWNER' } },
-      },
+      data: { name: 'Org A', slug: 'org-a' },
+    });
+    orgB = await prisma.organization.create({
+      data: { name: 'Org B', slug: 'org-b' },
     });
 
-    orgB = await prisma.organization.create({
-      data: {
-        name: 'Org B',
-        slug: 'org-b',
-        memberships: { create: { userId: userB.id, role: 'OWNER' } },
-      },
+    contactA = await prisma.contact.create({
+      data: { organizationId: orgA.id, email: 'a@example.com' },
+    });
+    contactB = await prisma.contact.create({
+      data: { organizationId: orgB.id, email: 'b@example.com' },
+    });
+
+    leadA = await prisma.lead.create({
+      data: { organizationId: orgA.id, contactId: contactA.id },
+    });
+    leadB = await prisma.lead.create({
+      data: { organizationId: orgB.id, contactId: contactB.id },
     });
   });
 
   afterAll(async () => {
     await prisma.organization.deleteMany();
-    await prisma.user.deleteMany();
   });
 
-  it('User A CANNOT read a lead in Org B', async () => {
-    const leadB = await prisma.lead.create({
-      data: { organizationId: orgB.id, budget: 1000 },
-    });
+  it('User in Org A can read Lead A', async () => {
+    const lead = await getLead('org-a', leadA.id);
+    expect(lead.id).toBe(leadA.id);
+  });
 
-    // Mock requireOrganizationMember to simulate User A trying to access Org A context
-    // But the lead belongs to Org B.
-    vi.spyOn(authorization, 'requireOrganizationMember').mockResolvedValue({
-      user: userA as NonNullable<Awaited<ReturnType<typeof authorization.getCurrentUser>>>,
-      organization: orgA,
-      membership: {
-        id: 'mock-mem-a',
-        userId: userA.id,
-        organizationId: orgA.id,
-        role: 'OWNER',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
+  it('User in Org A CANNOT read Lead B (from Org B)', async () => {
+    await expect(getLead('org-a', leadB.id)).rejects.toThrow('NOT_FOUND');
+  });
 
-    // Attempt to fetch Lead B using Org A's slug
-    // The service internally fetches using `organizationId: orgA.id`, so it should return NOT_FOUND
-    await expect(getLead(orgA.slug, leadB.id)).rejects.toThrow('NOT_FOUND');
+  it('User in Org A can read Contact A', async () => {
+    const contact = await getContact('org-a', contactA.id);
+    expect(contact.id).toBe(contactA.id);
+  });
 
-    vi.restoreAllMocks();
+  it('User in Org A CANNOT read Contact B (from Org B)', async () => {
+    await expect(getContact('org-a', contactB.id)).rejects.toThrow('NOT_FOUND');
   });
 });
