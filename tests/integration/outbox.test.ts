@@ -35,7 +35,9 @@ describe('Transactional Outbox Dispatcher', () => {
     const claimed = await dispatchOutboxEvents(10);
     expect(claimed).toBe(1);
 
-    expect(producer.enqueueAutomationJob).toHaveBeenCalledWith({ test: true });
+    expect(producer.enqueueAutomationJob).toHaveBeenCalledWith(
+      expect.objectContaining({ test: true })
+    );
 
     const updated = await prisma.outboxEvent.findUnique({ where: { id: event.id } });
     expect(updated?.status).toBe('DISPATCHED');

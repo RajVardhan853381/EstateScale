@@ -47,6 +47,9 @@ model Organization {
   setupState           OrganizationSetupState?
   communicationConfigs OrganizationCommunicationConfig[]
   outboxEvents         OutboxEvent[]
+  settings             Json?
+  invitations          OrganizationInvitation[]
+  importJobs           ImportJob[]
 }
 
 model OrganizationMembership {
@@ -80,6 +83,39 @@ model OrganizationSetupState {
   updatedAt         DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model OrganizationInvitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String
+  token          String   @unique
+  status         String   @default("PENDING") // PENDING, ACCEPTED, EXPIRED
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([token])
+}
+
+model ImportJob {
+  id             String   @id @default(cuid())
+  organizationId String
+  status         String   // PROCESSING, COMPLETED, FAILED
+  totalRecords   Int      @default(0)
+  skipped        Int      @default(0)
+  imported       Int      @default(0)
+  failed         Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 // NextAuth Required Models
