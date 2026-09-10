@@ -45,6 +45,44 @@ model Organization {
   conversations        Conversation[]
   messages             Message[]
   communicationConfigs OrganizationCommunicationConfig[]
+  invitations          OrganizationInvitation[]
+  importJobs           ImportJob[]
+  settings             Json?
+  setupState           OrganizationSetupState?
+}
+
+model OrganizationInvitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String
+  token          String   @unique
+  status         String   @default("PENDING") // PENDING, ACCEPTED, EXPIRED
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([token])
+}
+
+model ImportJob {
+  id             String   @id @default(cuid())
+  organizationId String
+  status         String   // PENDING, PROCESSING, COMPLETED, FAILED
+  totalRecords   Int      @default(0)
+  imported       Int      @default(0)
+  skipped        Int      @default(0)
+  failed         Int      @default(0)
+  errorDetails   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
 }
 
 model OrganizationMembership {
@@ -64,6 +102,20 @@ model OrganizationMembership {
   @@unique([userId, organizationId])
   @@index([organizationId])
   @@index([userId])
+}
+
+model OrganizationSetupState {
+  id                String   @id @default(cuid())
+  organizationId    String   @unique
+  currentStep       String   @default("COMPANY") // COMPANY, USERS, CRM, IMPORT, AI, COMMUNICATION, REVIEW, COMPLETE
+  completedSteps    Json?    // Array of completed step strings
+  isConfiguring     Boolean  @default(true)
+  isReadyForTest    Boolean  @default(false)
+  isReadyForActive  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 // NextAuth Required Models
