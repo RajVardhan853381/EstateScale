@@ -115,7 +115,8 @@ export function OnboardingWizard({ slug, initialState }: WizardProps) {
       if (res.ok) {
         router.push(`/org/${slug}/dashboard`);
       } else {
-        alert("Activation failed. Please check requirements.");
+        const data = await res.json();
+        alert(`Activation failed: ${data.error || "Please check requirements."}`);
       }
     } catch (e) {
       console.error(e);

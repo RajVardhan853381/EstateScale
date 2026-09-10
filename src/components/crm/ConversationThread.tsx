@@ -35,38 +35,42 @@ export function ConversationThread({
                 </CardTitle>
             </CardHeader>
 
-            <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+            <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/30">
                 {messages.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center">No messages yet.</p>
+                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-500">
+                        <p className="text-sm font-medium text-gray-900 mb-1">No messages yet</p>
+                        <p className="text-xs">Start the conversation by sending a message below.</p>
+                    </div>
                 ) : (
                     messages.map((msg) => (
-                        <div key={msg.id} className={`flex flex-col max-w-[80%] ${msg.direction === "OUTBOUND" ? "ml-auto items-end" : "mr-auto items-start"}`}>
-                            <div className={`px-3 py-2 rounded-lg text-sm ${msg.direction === "OUTBOUND" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                        <div key={msg.id} className={`flex flex-col max-w-[85%] ${msg.direction === "OUTBOUND" ? "ml-auto items-end" : "mr-auto items-start"}`}>
+                            <div className={`px-4 py-2 rounded-2xl text-sm shadow-sm ${msg.direction === "OUTBOUND" ? "bg-blue-600 text-white rounded-br-sm" : "bg-white border border-gray-200 text-gray-900 rounded-bl-sm"}`}>
                                 {msg.body}
                             </div>
-                            <span className="text-xs text-muted-foreground mt-1">
-                                {new Date(msg.createdAt).toLocaleTimeString()} · {msg.status}
+                            <span className="text-[10px] text-gray-400 mt-1 px-1 font-medium">
+                                {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                {msg.direction === "OUTBOUND" && <span className="ml-1 uppercase tracking-wider">· {msg.status}</span>}
                             </span>
                         </div>
                     ))
                 )}
             </CardContent>
 
-            <CardFooter className="p-3 border-t">
+            <CardFooter className="p-4 border-t bg-gray-50/50">
                 <form
                     action={async (formData) => {
                         const body = formData.get("body") as string;
-                        if (!body) return;
+                        if (!body || body.trim() === "") return;
                         await triggerSmsSend(organizationSlug, leadId, body);
                     }}
-                    className="flex w-full gap-2"
+                    className="flex w-full gap-3"
                 >
                     <Input
                         name="body"
-                        placeholder={isOptedOut ? "Lead has opted out" : "Type a message..."}
+                        placeholder={isOptedOut ? "This lead has opted out of SMS." : "Type your message..."}
                         disabled={isOptedOut}
                         autoComplete="off"
-                        className="flex-1"
+                        className="flex-1 bg-white"
                     />
                     <SubmitButton disabled={isOptedOut} />
                 </form>
