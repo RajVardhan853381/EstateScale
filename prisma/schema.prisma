@@ -67,6 +67,20 @@ model OrganizationMembership {
   @@index([userId])
 }
 
+model OrganizationSetupState {
+  id                String   @id @default(cuid())
+  organizationId    String   @unique
+  currentStep       String   @default("COMPANY") // COMPANY, USERS, CRM, IMPORT, AI, COMMUNICATION, REVIEW, COMPLETE
+  completedSteps    Json?    // Array of completed step strings
+  isConfiguring     Boolean  @default(true)
+  isReadyForTest    Boolean  @default(false)
+  isReadyForActive  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
 // NextAuth Required Models
 model Account {
   id                String  @id @default(cuid())
