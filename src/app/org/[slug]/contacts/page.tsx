@@ -1,7 +1,15 @@
 import { listContacts } from '@/lib/services/contacts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { requireOrganizationMember } from '@/lib/auth/authorization';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { format } from 'date-fns';
 
 export default async function ContactsPage(props: {
   params: Promise<{ slug: string }>;
@@ -10,15 +18,18 @@ export default async function ContactsPage(props: {
   const searchParams = await props.searchParams;
   const params = await props.params;
 
-  await requireOrganizationMember(params.slug);
-
   const page = searchParams.page ? parseInt(searchParams.page, 10) : 1;
-  const data = await listContacts(params.slug, { page, limit: 20 });
+
+  const data = await listContacts(params.slug, {
+    page,
+    limit: 20,
+  });
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Contacts</h1>
+        <Button>Add Contact</Button>
       </div>
 
       <Card>
@@ -33,32 +44,27 @@ export default async function ContactsPage(props: {
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Leads</TableHead>
-                <TableHead>Last Activity</TableHead>
+                <TableHead>Added</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.contacts.length === 0 ? (
+              {data.contacts.map((contact) => (
+                <TableRow key={contact.id}>
+                  <TableCell className="font-medium">
+                    {contact.firstName} {contact.lastName}
+                  </TableCell>
+                  <TableCell>{contact.email || '-'}</TableCell>
+                  <TableCell>{contact.phone || '-'}</TableCell>
+                  <TableCell>{contact._count.leads}</TableCell>
+                  <TableCell>{format(new Date(contact.createdAt), 'MMM d, yyyy')}</TableCell>
+                </TableRow>
+              ))}
+              {data.contacts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
+                  <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                     No contacts found.
                   </TableCell>
                 </TableRow>
-              ) : (
-                data.contacts.map((contact) => (
-                  <TableRow key={contact.id}>
-                    <TableCell className="font-medium">
-                      {contact.firstName} {contact.lastName}
-                    </TableCell>
-                    <TableCell>{contact.email || '-'}</TableCell>
-                    <TableCell>{contact.phone || '-'}</TableCell>
-                    <TableCell>{contact._count.leads}</TableCell>
-                    <TableCell>
-                      {contact.leads[0]?.updatedAt
-                        ? new Date(contact.leads[0].updatedAt).toLocaleDateString()
-                        : 'Never'}
-                    </TableCell>
-                  </TableRow>
-                ))
               )}
             </TableBody>
           </Table>

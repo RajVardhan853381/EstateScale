@@ -1,150 +1,177 @@
 import { getLead } from '@/lib/services/leads';
+import { listLeadActivities } from '@/lib/services/activities';
+import { prisma } from '@/lib/prisma';
+import { requireOrganizationMember } from '@/lib/auth/authorization';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { requireOrganizationMember } from '@/lib/auth/authorization';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LeadActivityTimeline } from '@/components/crm/LeadActivityTimeline';
+import { AiLeadAssessment } from '@/components/crm/AiLeadAssessment';
+import { ConversationThread } from '@/components/crm/ConversationThread';
+import { notFound } from 'next/navigation';
 
 export default async function LeadDetailPage(props: {
   params: Promise<{ slug: string; leadId: string }>;
 }) {
   const params = await props.params;
-  await requireOrganizationMember(params.slug);
+  let lead: Awaited<ReturnType<typeof getLead>>;
+  let activities: Awaited<ReturnType<typeof listLeadActivities>>;
+  let messages: {
+    id: string;
+    body: string;
+    direction: 'INBOUND' | 'OUTBOUND';
+    status: string;
+    createdAt: Date;
+  }[] = [];
+  let isOptedOut = false;
 
-  const lead = await getLead(params.slug, params.leadId);
+  try {
+    const { organization } = await requireOrganizationMember(params.slug);
+    lead = await getLead(params.slug, params.leadId);
+    activities = await listLeadActivities(params.slug, params.leadId);
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { organizationId: organization.id, leadId: lead.id },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
+    });
+
+    if (conversation) {
+      messages = conversation.messages;
+      isOptedOut = conversation.status === 'OPT_OUT';
+    }
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('signin') || msg.includes('NEXT_REDIRECT')) {
+      throw error;
+    }
+    notFound();
+  }
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            {lead.contact?.firstName} {lead.contact?.lastName}
-          </h1>
-          <p className="text-gray-500 mt-1">{lead.contact?.email} • {lead.contact?.phone}</p>
-        </div>
-        <div className="flex gap-2">
-          <Badge variant={lead.status === 'NEW' ? 'default' : 'secondary'} className="text-sm">
-            {lead.status}
-          </Badge>
-        </div>
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          {lead.contact?.firstName} {lead.contact?.lastName}
+        </h1>
+        <Badge variant="outline" className="text-lg py-1 px-4">
+          {lead.status}
+        </Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
-          <Tabs defaultValue="details">
-            <TabsList>
-              <TabsTrigger value="details">Details</TabsTrigger>
-              <TabsTrigger value="notes">Notes ({lead.notesRel.length})</TabsTrigger>
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-            </TabsList>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <AiLeadAssessment
+            slug={params.slug}
+            leadId={lead.id}
+            assessment={lead.aiAssessments?.[0]}
+          />
 
-            <TabsContent value="details">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Lead Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <span className="text-sm text-gray-500 block">Source</span>
-                      <span>{lead.source || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500 block">Score</span>
-                      <span>{lead.score || 'N/A'}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500 block">Intent</span>
-                      <span>{lead.intent || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500 block">Budget</span>
-                      <span>{lead.budget ? `$${lead.budget.toLocaleString()}` : 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500 block">Location</span>
-                      <span>{lead.location || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500 block">Property Type</span>
-                      <span>{lead.propertyType || 'Unknown'}</span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-500 block">Timeline</span>
-                      <span>{lead.timeline || 'Unknown'}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+          <ConversationThread
+            organizationSlug={params.slug}
+            leadId={lead.id}
+            messages={messages}
+            isOptedOut={isOptedOut}
+          />
 
-            <TabsContent value="notes">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {lead.notesRel.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No notes yet.</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {lead.notesRel.map(note => (
-                        <div key={note.id} className="border-b pb-4 last:border-0">
-                          <p className="whitespace-pre-wrap text-sm">{note.content}</p>
-                          <div className="text-xs text-gray-400 mt-2">
-                            {note.user?.user.name} • {new Date(note.createdAt).toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+          <Card>
+            <CardHeader>
+              <CardTitle>Lead Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-500">Email</div>
+                  <div>{lead.contact?.email || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Phone</div>
+                  <div>{lead.contact?.phone || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Source</div>
+                  <div>{lead.source || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Budget</div>
+                  <div>{lead.budget ? `$${lead.budget.toLocaleString()}` : '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Location</div>
+                  <div>{lead.location || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Property Type</div>
+                  <div>{lead.propertyType || '-'}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            <TabsContent value="activity">
-               <Card>
-                <CardHeader>
-                  <CardTitle>Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                   <p className="text-gray-500 text-sm italic">Activity timeline loaded separately.</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Card>
+            <CardHeader>
+              <CardTitle>Notes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {lead.notes.length === 0 ? (
+                <div className="text-gray-500 text-sm">No notes added.</div>
+              ) : (
+                <div className="space-y-4">
+                  {lead.notes.map((note) => (
+                    <div key={note.id} className="p-3 bg-gray-50 rounded text-sm">
+                      <div className="text-gray-600 mb-1 font-semibold">
+                        {note.user?.user?.name || 'System'}
+                      </div>
+                      <div>{note.content}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Assignment</CardTitle>
+              <CardTitle>Pipeline & Status</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm">{lead.assignedUser?.user.name || 'Unassigned'}</p>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <div className="text-gray-500">Assigned Agent</div>
+                <div className="font-medium">{lead.assignedUser?.user?.name || 'Unassigned'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Pipeline</div>
+                <div className="font-medium">{lead.pipeline?.name || '-'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Stage</div>
+                <div className="font-medium">{lead.pipelineStage?.name || '-'}</div>
+              </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Pipeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm font-medium">{lead.pipelineStage?.name || 'No Stage'}</p>
-              <p className="text-xs text-gray-500 mt-1">{lead.pipeline?.name}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Tags</CardTitle>
+              <CardTitle>Tags</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {lead.tags.map(lt => (
-                  <Badge key={lt.tag.id} variant="outline">{lt.tag.name}</Badge>
+                {lead.tags.map((t) => (
+                  <Badge key={t.tag.id} variant="secondary">
+                    {t.tag.name}
+                  </Badge>
                 ))}
-                {lead.tags.length === 0 && <span className="text-sm text-gray-500">No tags</span>}
+                {lead.tags.length === 0 && <span className="text-gray-500 text-sm">No tags.</span>}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LeadActivityTimeline activities={activities} />
             </CardContent>
           </Card>
         </div>

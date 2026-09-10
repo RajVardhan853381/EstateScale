@@ -82,7 +82,7 @@ export async function createLead(slug: string, data: unknown) {
         location: validated.location,
         propertyType: validated.propertyType,
         timeline: validated.timeline,
-        notes: validated.notesText,
+        notesText: validated.notesText,
       },
     });
 
@@ -118,11 +118,15 @@ export async function getLead(slug: string, leadId: string) {
       tags: {
         include: { tag: true },
       },
-      notesRel: {
+      notes: {
         orderBy: { createdAt: 'desc' },
         include: {
           user: { include: { user: true } },
         },
+      },
+      aiAssessments: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
       },
     },
   });
