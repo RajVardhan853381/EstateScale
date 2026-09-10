@@ -1,19 +1,21 @@
-import { z } from "zod";
-import { LeadStatus } from "@prisma/client";
+import { z } from 'zod';
+import { LeadStatus } from '@prisma/client';
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const contactSchema = z.object({
-  firstName: z.string().max(100).optional(),
-  lastName: z.string().max(100).optional(),
-  email: z.string().email().max(255).optional().or(z.literal("")),
-  phone: z.string().max(50).optional().or(z.literal("")),
-}).refine(data => data.email || data.phone || (data.firstName && data.lastName), {
-  message: "Must provide at least email, phone, or full name",
-});
+export const contactSchema = z
+  .object({
+    firstName: z.string().max(100).optional(),
+    lastName: z.string().max(100).optional(),
+    email: z.string().email().max(255).optional().or(z.literal('')),
+    phone: z.string().max(50).optional().or(z.literal('')),
+  })
+  .refine((data) => data.email || data.phone || (data.firstName && data.lastName), {
+    message: 'Must provide at least email, phone, or full name',
+  });
 
 export const leadBaseSchema = z.object({
   contactId: z.string().optional(), // if linking to existing
@@ -32,8 +34,8 @@ export const leadBaseSchema = z.object({
   notesText: z.string().optional(),
 });
 
-export const leadSchema = leadBaseSchema.refine(data => data.contactId || data.contact, {
-  message: "Must provide either contactId or new contact details",
+export const leadSchema = leadBaseSchema.refine((data) => data.contactId || data.contact, {
+  message: 'Must provide either contactId or new contact details',
 });
 
 export const updateLeadSchema = leadBaseSchema.partial().extend({
@@ -41,11 +43,18 @@ export const updateLeadSchema = leadBaseSchema.partial().extend({
 });
 
 export const noteSchema = z.object({
-  content: z.string().min(1, "Note content cannot be empty").max(10000),
+  content: z.string().min(1, 'Note content cannot be empty').max(10000),
 });
 
 export const tagSchema = z.object({
-  name: z.string().min(1).max(50).regex(/^[a-zA-Z0-9\-_]+$/, "Tag name can only contain alphanumeric characters, hyphens, and underscores"),
+  name: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(
+      /^[a-zA-Z0-9\-_]+$/,
+      'Tag name can only contain alphanumeric characters, hyphens, and underscores'
+    ),
 });
 
 export const pipelineStageSchema = z.object({
