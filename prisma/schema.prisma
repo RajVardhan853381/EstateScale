@@ -46,6 +46,7 @@ model Organization {
   messages             Message[]
   communicationConfigs OrganizationCommunicationConfig[]
   outboxEvents         OutboxEvent[]
+  setupState           OrganizationSetupState?
 }
 
 model OrganizationMembership {
