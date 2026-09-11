@@ -492,7 +492,7 @@ model Conversation {
   organizationId String
   leadId         String?
   contactId      String
-  channel        String             @default("SMS")
+  channel        String             @default("SMS") // SMS, WHATSAPP, VOICE
   status         ConversationStatus @default(ACTIVE)
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -522,6 +522,7 @@ model Message {
   from           String
   to             String
   externalId     String?
+  channel        String           @default("SMS") // SMS, WHATSAPP, VOICE
   provider       String           @default("TWILIO")
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -532,6 +533,7 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, conversationId, createdAt])
+  @@unique([organizationId, externalId])
   @@index([organizationId, externalId])
 }
 
