@@ -1,58 +1,38 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // DTO Schemas mapping to AI Outputs
 
 export const LeadExtractionSchema = z.object({
-  intent: z.enum(['BUY', 'SELL', 'INVEST', 'RENT', 'GENERAL_INQUIRY', 'UNKNOWN']),
-  budget: z.number().nullable().describe('Extracted budget amount if available'),
-  location: z.string().nullable().describe('Extracted desired location or city'),
-  propertyType: z
-    .string()
-    .nullable()
-    .describe('Extracted desired property type (e.g., condo, single-family)'),
-  timeline: z
-    .string()
-    .nullable()
-    .describe('Extracted timeframe for transaction (e.g., within 3 months)'),
+  intent: z.enum(["BUY", "SELL", "INVEST", "RENT", "GENERAL_INQUIRY", "UNKNOWN"]),
+  budget: z.number().nullable().describe("Extracted budget amount if available"),
+  location: z.string().nullable().describe("Extracted desired location or city"),
+  propertyType: z.string().nullable().describe("Extracted desired property type (e.g., condo, single-family)"),
+  timeline: z.string().nullable().describe("Extracted timeframe for transaction (e.g., within 3 months)"),
 });
 
 export const LeadQualificationSchema = z.object({
-  qualificationStatus: z.enum(['HOT', 'WARM', 'COLD', 'UNQUALIFIED']),
-  qualificationReason: z
-    .string()
-    .describe('Concise business explanation for this qualification status.'),
-  missingInformation: z
-    .array(z.string())
-    .describe('List of critical data points missing for a complete qualification.'),
-  confidence: z
-    .number()
-    .min(0)
-    .max(100)
-    .describe('Confidence score of the qualification logic (0-100)'),
+  qualificationStatus: z.enum(["HOT", "WARM", "COLD", "UNQUALIFIED"]),
+  qualificationReason: z.string().describe("Concise business explanation for this qualification status."),
+  missingInformation: z.array(z.string()).describe("List of critical data points missing for a complete qualification."),
+  confidence: z.number().min(0).max(100).describe("Confidence score of the qualification logic (0-100)"),
 });
 
 export const LeadScoreSchema = z.object({
-  score: z.number().min(0).max(100).describe('Lead quality score between 0 and 100'),
-  scoreReasoning: z.string().describe('Concise explanation for why this score was assigned'),
-  signals: z
-    .array(z.string())
-    .describe('Specific positive or negative intent signals detected in the lead context'),
+  score: z.number().min(0).max(100).describe("Lead quality score between 0 and 100"),
+  scoreReasoning: z.string().describe("Concise explanation for why this score was assigned"),
+  signals: z.array(z.string()).describe("Specific positive or negative intent signals detected in the lead context"),
 });
 
 export const LeadResponseSchema = z.object({
-  suggestedResponse: z
-    .string()
-    .describe(
-      'Professional, concise, sales-oriented response draft addressed directly to the lead.'
-    ),
+  suggestedResponse: z.string().describe("Professional, concise, sales-oriented response draft addressed directly to the lead."),
 });
 
 // Full unified schema for single-pass AI calls
 export const ComprehensiveLeadAnalysisSchema = z.object({
-  extraction: LeadExtractionSchema,
-  qualification: LeadQualificationSchema,
-  score: LeadScoreSchema,
-  response: LeadResponseSchema,
+    extraction: LeadExtractionSchema,
+    qualification: LeadQualificationSchema,
+    score: LeadScoreSchema,
+    response: LeadResponseSchema
 });
 
 // Safe Prompts ensuring Lead untrusted data is physically segregated
@@ -71,11 +51,11 @@ RULES:
 `;
 
 export const constructAnalysisPrompt = (
-  organizationName: string,
-  leadTextContext: string,
-  contactInfo: string
+    organizationName: string,
+    leadTextContext: string,
+    contactInfo: string
 ) => {
-  return `
+    return `
 === ORGANIZATION CONTEXT ===
 Organization Name: ${organizationName}
 
@@ -88,4 +68,4 @@ ${leadTextContext}
 
 Analyze the lead context above and generate the required JSON structure.
 `;
-};
+}
