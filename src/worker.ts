@@ -1,137 +1,166 @@
-import { Worker, Job } from "bullmq";
-import { AUTOMATION_QUEUE_NAME, AutomationJobPayload, ManualSmsJobPayload, AutomatedSmsJobPayload, AiAnalysisJobPayload } from "./lib/queue/producer";
-import { redisClient } from "./lib/queue/client";
-import { prisma } from "./lib/prisma";
-import { analyzeLead } from "./lib/services/ai";
-import { executeSendSms } from "./lib/services/communication";
+import { Worker, Job } from 'bullmq';
+import {
+  AUTOMATION_QUEUE_NAME,
+  AutomationJobPayload,
+  ManualSmsJobPayload,
+  AutomatedSmsJobPayload,
+  AiAnalysisJobPayload,
+} from './lib/queue/producer';
+import { redisClient } from './lib/queue/client';
+import { prisma } from './lib/prisma';
+import { analyzeLead } from './lib/services/ai';
+import { Logger } from 'pino';
+import { executeSendSms } from './lib/services/communication';
+import logger from './lib/logger';
+import { incrementMetric } from './lib/metrics';
 
-console.log("🚀 Starting EstateScale Background Worker process...");
+logger.info('🚀 Starting EstateScale Background Worker process...');
 
 const processJob = async (job: Job<AutomationJobPayload>) => {
-    const payload = job.data;
-    console.log(`[Worker] Processing Job ${job.id} (Action: ${payload.actionType}) for Lead ${payload.leadId}`);
+  const payload = job.data;
+  const reqId = payload.requestId || 'unknown-req-id';
+  const log = logger.child({ reqId, jobId: job.id, actionType: payload.actionType, leadId: payload.leadId, organizationId: payload.organizationId });
 
-    if (payload.actionType === "MANUAL_SMS") {
-        await processManualSms(payload, job.id!);
+  log.info('Processing Job');
+
+  try {
+    if (payload.actionType === 'MANUAL_SMS') {
+      await processManualSms(payload, job.id!, log);
     } else {
-        await processAutomatedJob(payload, job.id!);
+      await processAutomatedJob(payload, job.id!, log);
     }
+    incrementMetric('workerJobsProcessed');
+  } catch (error) {
+    incrementMetric('workerJobFailures');
+    throw error;
+  }
 };
 
-async function processManualSms(payload: ManualSmsJobPayload, jobId: string) {
-    const { organizationId, leadId, messageId } = payload;
+async function processManualSms(payload: ManualSmsJobPayload, jobId: string, log: Logger) {
+  const { organizationId, leadId, messageId } = payload;
 
-    // Verify tenant ownership safely
-    const message = await prisma.message.findFirst({
-        where: { id: messageId, organizationId }
-    });
+  const message = await prisma.message.findFirst({
+    where: { id: messageId, organizationId },
+  });
 
-    if (!message) {
-        console.error(`[Worker] Manual SMS Error: Message ${messageId} not found in org ${organizationId}`);
-        return; // Reject silently to avoid infinite retry loops on bad data
-    }
+  if (!message) {
+    log.error({ messageId }, 'Manual SMS Error: Message not found in org');
+    return;
+  }
 
-    if (message.status !== "QUEUED") {
-        console.warn(`[Worker] Message ${messageId} is in status ${message.status}, skipping send.`);
-        return;
-    }
+  if (message.status !== 'QUEUED') {
+    log.warn({ messageId, status: message.status }, 'Message is not QUEUED, skipping send.');
+    return;
+  }
 
-    try {
-        await executeSendSms(organizationId, leadId, message.body, message.id);
-    } catch (err: unknown) {
-        console.error(`[Worker] Job ${jobId} failed sending manual SMS:`, err);
-        throw err; // Trigger BullMQ backoff
-    }
+  try {
+    await executeSendSms(organizationId, leadId, message.body, message.id);
+  } catch (err: unknown) {
+    log.error({ err: err instanceof Error ? err.message : 'Unknown' }, 'Job failed sending manual SMS');
+    throw err;
+  }
 }
 
-async function processAutomatedJob(payload: AutomatedSmsJobPayload | AiAnalysisJobPayload, jobId: string) {
-    const { organizationId, leadId, actionType, executionId } = payload;
+async function processAutomatedJob(
+  payload: AutomatedSmsJobPayload | AiAnalysisJobPayload,
+  jobId: string,
+  log: Logger
+) {
+  const { organizationId, leadId, actionType, executionId } = payload;
 
-    // State 1: Acknowledge processing cleanly before making any expensive external calls
-    const execution = await prisma.automationExecution.findFirst({
-        where: { id: executionId, organizationId }
-    });
+  const execution = await prisma.automationExecution.findFirst({
+    where: { id: executionId, organizationId },
+  });
 
-    if (!execution) {
-         console.error(`[Worker] AutomationExecution ${executionId} not found in org ${organizationId}`);
-         return;
+  if (!execution) {
+    log.error({ executionId }, 'AutomationExecution not found in org');
+    return;
+  }
+
+  if (execution.status === 'COMPLETED') {
+    log.warn({ executionId }, 'Execution already COMPLETED, skipping retry.');
+    return;
+  }
+
+  await prisma.automationExecution.update({
+    where: { id: executionId, organizationId },
+    data: { status: 'PROCESSING', startedAt: new Date() },
+  });
+
+  try {
+    if (actionType === 'AI_LEAD_ANALYSIS' || actionType === 'AI_LEAD_RESPONSE_GENERATION') {
+      await performInternalAIAnalysis(organizationId, leadId);
+      incrementMetric('aiRequests');
+    } else if (actionType === 'AUTOMATED_SMS') {
+      await performInternalAutomatedSMS(organizationId, leadId);
+    } else {
+      throw new Error(`Unknown actionType: ${actionType}`);
     }
 
     await prisma.automationExecution.update({
-        where: { id: executionId, organizationId },
-        data: { status: "PROCESSING", startedAt: new Date() }
+      where: { id: executionId, organizationId },
+      data: { status: 'COMPLETED', completedAt: new Date() },
     });
 
-    try {
-        if (actionType === "AI_LEAD_ANALYSIS" || actionType === "AI_LEAD_RESPONSE_GENERATION") {
-            await performInternalAIAnalysis(organizationId, leadId);
-        } else if (actionType === "AUTOMATED_SMS") {
-            await performInternalAutomatedSMS(organizationId, leadId);
-        } else {
-            throw new Error(`Unknown actionType: ${actionType}`);
-        }
+    incrementMetric('automationExecutions');
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown Worker Error';
+    log.error({ err: msg }, 'Automation Job failed');
 
-        // State 2: Finalize upon successful execution returns
-        await prisma.automationExecution.update({
-            where: { id: executionId, organizationId },
-            data: { status: "COMPLETED", completedAt: new Date() }
-        });
+    await prisma.automationExecution.update({
+      where: { id: executionId, organizationId },
+      data: { status: 'FAILED', error: msg },
+    });
 
-    } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Unknown Worker Error";
-        console.error(`[Worker] Job ${jobId} failed:`, msg);
+    incrementMetric('automationFailures');
+    if (actionType.startsWith('AI_')) incrementMetric('aiFailures');
 
-        // State 3: Hard failure registration
-        await prisma.automationExecution.update({
-            where: { id: executionId, organizationId },
-            data: { status: "FAILED", error: msg }
-        });
-
-        throw err;
-    }
+    throw err;
+  }
 }
 
 async function performInternalAIAnalysis(organizationId: string, leadId: string) {
-    const org = await prisma.organization.findUnique({ where: { id: organizationId }});
-    if(!org) throw new Error("Org not found");
+  const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+  if (!org) throw new Error('Org not found');
 
-    await analyzeLead(org.slug, leadId, undefined, { bypassAuth: true, organizationId });
+  await analyzeLead(org.slug, leadId, undefined, { bypassAuth: true, organizationId });
 }
 
 async function performInternalAutomatedSMS(organizationId: string, leadId: string) {
-    const org = await prisma.organization.findUnique({ where: { id: organizationId }});
-    if(!org) throw new Error("Org not found");
+  const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+  if (!org) throw new Error('Org not found');
 
-    // We fetch the most recently suggested AI response if one exists as the automated content
-    const assessment = await prisma.aiAssessment.findFirst({
-        where: { organizationId, leadId },
-        orderBy: { createdAt: 'desc' }
-    });
+  const assessment = await prisma.aiAssessment.findFirst({
+    where: { organizationId, leadId },
+    orderBy: { createdAt: 'desc' },
+  });
 
-    const body = assessment?.suggestedResponse || "Hello! Thanks for reaching out. An agent will be with you shortly.";
+  const body =
+    assessment?.suggestedResponse ||
+    'Hello! Thanks for reaching out. An agent will be with you shortly.';
 
-    await executeSendSms(organizationId, leadId, body);
+  await executeSendSms(organizationId, leadId, body);
 }
 
 const worker = new Worker(AUTOMATION_QUEUE_NAME, processJob, {
-    connection: redisClient,
-    concurrency: 5,
+  connection: redisClient,
+  concurrency: 5,
 });
 
-worker.on("completed", (job) => {
-    console.log(`✅ [Worker] Job ${job.id} completed successfully.`);
+worker.on('completed', (job) => {
+  logger.info({ jobId: job.id }, '✅ [Worker] Job completed successfully.');
 });
 
-worker.on("failed", (job, err) => {
-    console.error(`❌ [Worker] Job ${job?.id} failed with error: ${err.message}`);
+worker.on('failed', (job, err) => {
+  logger.error({ jobId: job?.id, err: err.message }, '❌ [Worker] Job failed');
 });
 
 const shutdown = async () => {
-    console.log("Shutting down worker gracefully...");
-    await worker.close();
-    await redisClient.quit();
-    process.exit(0);
+  logger.info('Shutting down worker gracefully...');
+  await worker.close();
+  await redisClient.quit();
+  process.exit(0);
 };
 
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

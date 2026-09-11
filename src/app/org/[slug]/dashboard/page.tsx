@@ -1,5 +1,5 @@
-import { requireOrganizationMember } from "@/lib/auth/authorization";
-import { notFound } from "next/navigation";
+import { requireOrganizationMember } from '@/lib/auth/authorization';
+import { notFound } from 'next/navigation';
 
 export default async function OrganizationDashboard({
   params,
@@ -17,8 +17,8 @@ export default async function OrganizationDashboard({
   } catch (error: unknown) {
     if (error instanceof Error) {
       if (
-        error.message === "Organization not found" ||
-        error.message === "Forbidden: Not a member of this organization"
+        error.message === 'Organization not found' ||
+        error.message === 'Forbidden: Not a member of this organization'
       ) {
         notFound();
       }

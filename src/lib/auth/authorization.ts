@@ -1,6 +1,6 @@
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { auth } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { redirect } from 'next/navigation';
 
 export async function getCurrentUser() {
   const session = await auth();
@@ -10,7 +10,7 @@ export async function getCurrentUser() {
 export async function requireAuthenticatedUser() {
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/api/auth/signin");
+    redirect('/api/auth/signin');
   }
   return user;
 }
@@ -27,7 +27,7 @@ export async function requireOrganizationMember(slug: string) {
   const organization = await getCurrentOrganization(slug);
 
   if (!organization) {
-    throw new Error("Organization not found");
+    throw new Error('Organization not found');
   }
 
   const membership = await prisma.organizationMembership.findUnique({
@@ -40,7 +40,7 @@ export async function requireOrganizationMember(slug: string) {
   });
 
   if (!membership) {
-    throw new Error("Forbidden: Not a member of this organization");
+    throw new Error('Forbidden: Not a member of this organization');
   }
 
   return { user, organization, membership };
@@ -50,14 +50,17 @@ export async function requireRole(slug: string, allowedRoles: string[]) {
   const { user, organization, membership } = await requireOrganizationMember(slug);
 
   if (!allowedRoles.includes(membership.role)) {
-    throw new Error("Forbidden: Insufficient permissions");
+    throw new Error('Forbidden: Insufficient permissions');
   }
 
   return { user, organization, membership };
 }
 
-export async function assertTenantOwnership(organizationId: string, resourceOrganizationId: string) {
+export async function assertTenantOwnership(
+  organizationId: string,
+  resourceOrganizationId: string
+) {
   if (organizationId !== resourceOrganizationId) {
-    throw new Error("Forbidden: Tenant isolation violation");
+    throw new Error('Forbidden: Tenant isolation violation');
   }
 }
