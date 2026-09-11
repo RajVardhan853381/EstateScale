@@ -49,111 +49,6 @@ model Organization {
   importJobs           ImportJob[]
   settings             Json?
   setupState           OrganizationSetupState?
-  subscription         Subscription?
-  voiceAgents          VoiceAgent[]
-  voiceCalls           VoiceCall[]
-  aiStudioAgents       AIAgent[]
-  aiAgentExecutions    AIAgentExecution[]
-}
-
-model AIAgent {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  description    String?
-  status         String   @default("DRAFT") // DRAFT, ACTIVE, ARCHIVED
-  instructions   String   @db.Text
-  modelConfig    Json?    // e.g. { provider: "openai", model: "gpt-4", temperature: 0.7 }
-  allowedTools   Json?    // Array of authorized tool names
-  agentType      String   @default("GENERAL_COPILOT") // LEAD_QUALIFIER, FOLLOW_UP_AGENT, COPILOT
-  permissions    Json?    // Read/write/external config
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  executions   AIAgentExecution[]
-
-  @@index([organizationId, status])
-}
-
-model AIAgentExecution {
-  id             String   @id @default(cuid())
-  organizationId String
-  agentId        String
-  userId         String?
-  status         String   @default("QUEUED") // QUEUED, RUNNING, COMPLETED, FAILED, AWAITING_APPROVAL
-  triggerContext Json?
-  result         Json?
-  error          String?  @db.Text
-  createdAt      DateTime @default(now())
-  completedAt    DateTime?
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  agent        AIAgent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  user         OrganizationMembership? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, agentId, status])
-}
-
-model VoiceAgent {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  enabled        Boolean  @default(false)
-  phoneNumber    String?  @unique
-  greeting       String?
-  systemPrompt   String   @db.Text
-  allowedTools   Json?    // Array of allowed tool names (e.g. qualifyLead, scheduleAppointment)
-  callLimitMins  Int      @default(15)
-  recordCalls    Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  calls        VoiceCall[]
-}
-
-model VoiceCall {
-  id               String   @id @default(cuid())
-  organizationId   String
-  agentId          String?
-  leadId           String?
-  providerCallId   String   @unique
-  direction        String   // INBOUND, OUTBOUND
-  status           String   @default("QUEUED") // QUEUED, RINGING, IN_PROGRESS, COMPLETED, FAILED, CANCELED
-  duration         Int?     // Duration in seconds
-  outcome          String?  // QUALIFIED, NOT_QUALIFIED, HUMAN_HANDOFF, FAILED, OTHER
-  summary          String?  @db.Text
-  transcriptUrl    String?
-  recordingUrl     String?
-  createdAt        DateTime @default(now())
-  endedAt          DateTime?
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  agent        VoiceAgent?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, status])
-  @@index([organizationId, leadId])
-  @@index([providerCallId])
-}
-
-model Subscription {
-  id                     String   @id @default(cuid())
-  organizationId         String   @unique
-  stripeCustomerId       String?  @unique
-  stripeSubscriptionId   String?  @unique
-  plan                   String   @default("FREE") // FREE, STARTER, GROWTH, AI_PRO, ENTERPRISE
-  status                 String   @default("INCOMPLETE") // ACTIVE, PAST_DUE, CANCELED, UNPAID
-  currentPeriodStart     DateTime?
-  currentPeriodEnd       DateTime?
-  cancelAtPeriodEnd      Boolean  @default(false)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([status])
 }
 
 model OrganizationInvitation {
@@ -203,7 +98,6 @@ model OrganizationMembership {
   Lead         Lead[]
   LeadActivity LeadActivity[]
   Note         Note[]
-  aiAgentExecutions AIAgentExecution[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -338,7 +232,6 @@ model Lead {
   automationExecutions AutomationExecution[]
 
   conversations Conversation[]
-  voiceCalls    VoiceCall[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
@@ -534,7 +427,7 @@ model Conversation {
   organizationId String
   leadId         String?
   contactId      String
-  channel        String             @default("SMS") // SMS, WHATSAPP, VOICE
+  channel        String             @default("SMS")
   status         ConversationStatus @default(ACTIVE)
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -564,7 +457,6 @@ model Message {
   from           String
   to             String
   externalId     String?
-  channel        String           @default("SMS") // SMS, WHATSAPP, VOICE
   provider       String           @default("TWILIO")
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -575,7 +467,6 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, conversationId, createdAt])
-  @@unique([organizationId, externalId])
   @@index([organizationId, externalId])
 }
 

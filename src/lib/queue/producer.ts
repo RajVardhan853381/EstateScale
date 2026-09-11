@@ -22,14 +22,8 @@ export type AiAnalysisJobPayload = BaseJobPayload & {
     executionId: string;
 };
 
-export type VoiceOutboundJobPayload = BaseJobPayload & {
-    actionType: "VOICE_OUTBOUND_CALL";
-    agentId: string;
-    callId: string;
-};
-
 // Discriminated union for worker routing safely
-export type AutomationJobPayload = AutomatedSmsJobPayload | ManualSmsJobPayload | AiAnalysisJobPayload | VoiceOutboundJobPayload;
+export type AutomationJobPayload = AutomatedSmsJobPayload | ManualSmsJobPayload | AiAnalysisJobPayload;
 
 export const AUTOMATION_QUEUE_NAME = "automation-engine";
 
@@ -39,10 +33,7 @@ export const automationQueue = new Queue<AutomationJobPayload>(AUTOMATION_QUEUE_
 });
 
 export async function enqueueAutomationJob(payload: AutomationJobPayload, delayMs: number = 0) {
-    let jobId;
-    if (payload.actionType === "MANUAL_SMS") jobId = payload.messageId;
-    else if (payload.actionType === "VOICE_OUTBOUND_CALL") jobId = payload.callId;
-    else jobId = payload.executionId;
+    const jobId = payload.actionType === "MANUAL_SMS" ? payload.messageId : payload.executionId;
 
     return automationQueue.add(
         payload.actionType,

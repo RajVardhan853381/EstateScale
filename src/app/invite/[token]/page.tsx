@@ -16,16 +16,9 @@ export default async function InvitePage(props: { params: Promise<{ token: strin
 
   if (!invitation || invitation.status !== "PENDING" || invitation.expiresAt < new Date()) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-           <div className="bg-white py-8 px-4 shadow-sm border border-gray-200 sm:rounded-lg sm:px-10 text-center">
-             <h1 className="text-xl font-bold text-red-600 mb-2">Invalid or Expired Invitation</h1>
-             <p className="text-sm text-gray-500 mb-6">This invitation link has expired or is no longer valid.</p>
-             <Link href="/" className="inline-block px-4 py-2 border rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-               Return Home
-             </Link>
-           </div>
-        </div>
+      <div className="p-8 text-center">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid or Expired Invitation</h1>
+        <p>This invitation link is no longer valid.</p>
       </div>
     );
   }

@@ -13,9 +13,6 @@ const processJob = async (job: Job<AutomationJobPayload>) => {
 
     if (payload.actionType === "MANUAL_SMS") {
         await processManualSms(payload, job.id!);
-    } else if (payload.actionType === "VOICE_OUTBOUND_CALL") {
-        // Placeholder for Voice Outbound logic in Phase 11
-        console.log(`[Worker] Outbound Voice Call Job stubbed for ${payload.callId}`);
     } else {
         await processAutomatedJob(payload, job.id!);
     }
