@@ -1,14 +1,10 @@
 import { prisma } from "../prisma";
 import { CommunicationProvider } from "../communication/provider";
 import { TwilioProvider, MockCommunicationProvider } from "../communication/twilio";
-import { TwilioWhatsAppProvider } from "../communication/whatsapp/provider";
 
-const getProvider = (channel: string = "SMS"): CommunicationProvider => {
+const getProvider = (): CommunicationProvider => {
     if (process.env.NODE_ENV === "test" || !process.env.TWILIO_ACCOUNT_SID) {
         return new MockCommunicationProvider();
-    }
-    if (channel === "WHATSAPP") {
-        return new TwilioWhatsAppProvider();
     }
     return new TwilioProvider();
 };
@@ -75,13 +71,7 @@ export async function executeSendSms(
         });
     }
 
-    const messageDetails = await prisma.message.findUnique({
-        where: { id: messageId }
-    });
-
-    const channel = messageDetails?.channel || "SMS";
-    const provider = getProvider(channel);
-
+    const provider = getProvider();
     const result = await provider.sendSms(
         lead.contact.phone,
         orgConfig.phoneNumber,
