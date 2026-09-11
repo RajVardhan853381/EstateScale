@@ -44,12 +44,65 @@ model Organization {
   automationExecutions AutomationExecution[]
   conversations        Conversation[]
   messages             Message[]
-  setupState           OrganizationSetupState?
   communicationConfigs OrganizationCommunicationConfig[]
   outboxEvents         OutboxEvent[]
-  settings             Json?
   invitations          OrganizationInvitation[]
   importJobs           ImportJob[]
+  settings             Json?
+  setupState           OrganizationSetupState?
+  subscription         Subscription?
+}
+
+model Subscription {
+  id                     String   @id @default(cuid())
+  organizationId         String   @unique
+  stripeCustomerId       String?  @unique
+  stripeSubscriptionId   String?  @unique
+  plan                   String   @default("FREE") // FREE, STARTER, GROWTH, AI_PRO, ENTERPRISE
+  status                 String   @default("INCOMPLETE") // ACTIVE, PAST_DUE, CANCELED, UNPAID
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model OrganizationInvitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String
+  token          String   @unique
+  status         String   @default("PENDING") // PENDING, ACCEPTED, EXPIRED
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([token])
+}
+
+model ImportJob {
+  id             String   @id @default(cuid())
+  organizationId String
+  status         String   // PENDING, PROCESSING, COMPLETED, FAILED
+  totalRecords   Int      @default(0)
+  imported       Int      @default(0)
+  skipped        Int      @default(0)
+  failed         Int      @default(0)
+  errorDetails   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
 }
 
 model OrganizationMembership {
@@ -83,39 +136,6 @@ model OrganizationSetupState {
   updatedAt         DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-}
-
-model OrganizationInvitation {
-  id             String   @id @default(cuid())
-  organizationId String
-  email          String
-  role           String
-  token          String   @unique
-  status         String   @default("PENDING") // PENDING, ACCEPTED, EXPIRED
-  expiresAt      DateTime
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@index([token])
-}
-
-model ImportJob {
-  id             String   @id @default(cuid())
-  organizationId String
-  status         String   // PROCESSING, COMPLETED, FAILED
-  totalRecords   Int      @default(0)
-  skipped        Int      @default(0)
-  imported       Int      @default(0)
-  failed         Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
 }
 
 // NextAuth Required Models
@@ -497,32 +517,4 @@ model OrganizationCommunicationConfig {
 
   @@unique([organizationId, phoneNumber])
   @@index([phoneNumber])
-}
-
-// --- PHASE 6B: TRANSACTIONAL OUTBOX ---
-
-enum OutboxEventStatus {
-  PENDING
-  PROCESSING
-  DISPATCHED
-  FAILED
-}
-
-model OutboxEvent {
-  id             String            @id @default(cuid())
-  organizationId String
-  actionType     String
-  payload        Json
-  status         OutboxEventStatus @default(PENDING)
-  attempts       Int               @default(0)
-  lastError      String?           @db.Text
-  availableAt    DateTime          @default(now())
-  processedAt    DateTime?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@index([status, availableAt])
 }
