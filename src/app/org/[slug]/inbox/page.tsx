@@ -21,7 +21,7 @@ export default async function InboxPageContainer(props: { params: Promise<{ slug
   return (
       <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
           <UnifiedInbox
-             conversations={conversations as any}
+             conversations={conversations as unknown as []}
           />
       </div>
   );

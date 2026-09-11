@@ -52,6 +52,47 @@ model Organization {
   subscription         Subscription?
   voiceAgents          VoiceAgent[]
   voiceCalls           VoiceCall[]
+  aiStudioAgents       AIAgent[]
+  aiAgentExecutions    AIAgentExecution[]
+}
+
+model AIAgent {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  status         String   @default("DRAFT") // DRAFT, ACTIVE, ARCHIVED
+  instructions   String   @db.Text
+  modelConfig    Json?    // e.g. { provider: "openai", model: "gpt-4", temperature: 0.7 }
+  allowedTools   Json?    // Array of authorized tool names
+  agentType      String   @default("GENERAL_COPILOT") // LEAD_QUALIFIER, FOLLOW_UP_AGENT, COPILOT
+  permissions    Json?    // Read/write/external config
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executions   AIAgentExecution[]
+
+  @@index([organizationId, status])
+}
+
+model AIAgentExecution {
+  id             String   @id @default(cuid())
+  organizationId String
+  agentId        String
+  userId         String?
+  status         String   @default("QUEUED") // QUEUED, RUNNING, COMPLETED, FAILED, AWAITING_APPROVAL
+  triggerContext Json?
+  result         Json?
+  error          String?  @db.Text
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent        AIAgent      @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user         OrganizationMembership? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, agentId, status])
 }
 
 model VoiceAgent {
@@ -162,6 +203,7 @@ model OrganizationMembership {
   Lead         Lead[]
   LeadActivity LeadActivity[]
   Note         Note[]
+  aiAgentExecutions AIAgentExecution[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
