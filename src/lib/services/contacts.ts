@@ -1,6 +1,6 @@
-import { prisma } from '@/lib/prisma';
-import { contactSchema, paginationSchema } from '@/lib/validations/crm';
-import { requireOrganizationMember } from '@/lib/auth/authorization';
+import { prisma } from "@/lib/prisma";
+import { contactSchema, paginationSchema } from "@/lib/validations/crm";
+import { requireOrganizationMember } from "@/lib/auth/authorization";
 
 export async function createContact(slug: string, data: unknown) {
   const { organization } = await requireOrganizationMember(slug);
@@ -30,7 +30,7 @@ export async function getContact(slug: string, contactId: string) {
   });
 
   if (!contact) {
-    throw new Error('NOT_FOUND');
+    throw new Error("NOT_FOUND");
   }
 
   return contact;
@@ -44,13 +44,13 @@ export async function listContacts(slug: string, queryParams: unknown) {
   const [contacts, total] = await Promise.all([
     prisma.contact.findMany({
       where: { organizationId: organization.id },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { updatedAt: "desc" },
       skip,
       take: limit,
       include: {
         _count: { select: { leads: true } },
         leads: {
-          orderBy: { updatedAt: 'desc' },
+          orderBy: { updatedAt: "desc" },
           take: 1,
           select: { updatedAt: true },
         },

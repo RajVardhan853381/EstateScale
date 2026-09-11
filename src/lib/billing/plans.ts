@@ -4,35 +4,35 @@ export const PLANS = {
         name: "Free",
         price: 0,
         stripePriceId: null,
-        limits: { leads: 50, aiTokens: 0, sms: 0 }
+        limits: { leads: 50, aiTokens: 0, sms: 0, voiceMinutes: 0 }
     },
     STARTER: {
         id: "STARTER",
         name: "Starter",
         price: 19900, // $199.00
         stripePriceId: process.env.STRIPE_PRICE_ID_STARTER || "price_starter_mock",
-        limits: { leads: 1000, aiTokens: 50000, sms: 500 }
+        limits: { leads: 1000, aiTokens: 50000, sms: 500, voiceMinutes: 0 }
     },
     GROWTH: {
         id: "GROWTH",
         name: "Growth",
         price: 29900,
         stripePriceId: process.env.STRIPE_PRICE_ID_GROWTH || "price_growth_mock",
-        limits: { leads: 5000, aiTokens: 200000, sms: 2000 }
+        limits: { leads: 5000, aiTokens: 200000, sms: 2000, voiceMinutes: 100 }
     },
     AI_PRO: {
         id: "AI_PRO",
         name: "AI Pro",
         price: 59900,
         stripePriceId: process.env.STRIPE_PRICE_ID_AIPRO || "price_aipro_mock",
-        limits: { leads: 10000, aiTokens: 1000000, sms: 5000 }
+        limits: { leads: 10000, aiTokens: 1000000, sms: 5000, voiceMinutes: 500 }
     },
     ENTERPRISE: {
         id: "ENTERPRISE",
         name: "Enterprise",
         price: 100000,
         stripePriceId: process.env.STRIPE_PRICE_ID_ENTERPRISE || "price_enterprise_mock",
-        limits: { leads: 999999, aiTokens: 9999999, sms: 50000 }
+        limits: { leads: 999999, aiTokens: 9999999, sms: 50000, voiceMinutes: 5000 }
     }
 } as const;
 

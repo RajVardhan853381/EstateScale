@@ -45,12 +45,56 @@ model Organization {
   conversations        Conversation[]
   messages             Message[]
   communicationConfigs OrganizationCommunicationConfig[]
-  outboxEvents         OutboxEvent[]
   invitations          OrganizationInvitation[]
   importJobs           ImportJob[]
   settings             Json?
   setupState           OrganizationSetupState?
   subscription         Subscription?
+  voiceAgents          VoiceAgent[]
+  voiceCalls           VoiceCall[]
+}
+
+model VoiceAgent {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  enabled        Boolean  @default(false)
+  phoneNumber    String?  @unique
+  greeting       String?
+  systemPrompt   String   @db.Text
+  allowedTools   Json?    // Array of allowed tool names (e.g. qualifyLead, scheduleAppointment)
+  callLimitMins  Int      @default(15)
+  recordCalls    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  calls        VoiceCall[]
+}
+
+model VoiceCall {
+  id               String   @id @default(cuid())
+  organizationId   String
+  agentId          String?
+  leadId           String?
+  providerCallId   String   @unique
+  direction        String   // INBOUND, OUTBOUND
+  status           String   @default("QUEUED") // QUEUED, RINGING, IN_PROGRESS, COMPLETED, FAILED, CANCELED
+  duration         Int?     // Duration in seconds
+  outcome          String?  // QUALIFIED, NOT_QUALIFIED, HUMAN_HANDOFF, FAILED, OTHER
+  summary          String?  @db.Text
+  transcriptUrl    String?
+  recordingUrl     String?
+  createdAt        DateTime @default(now())
+  endedAt          DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent        VoiceAgent?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, leadId])
+  @@index([providerCallId])
 }
 
 model Subscription {
@@ -252,6 +296,7 @@ model Lead {
   automationExecutions AutomationExecution[]
 
   conversations Conversation[]
+  voiceCalls    VoiceCall[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
