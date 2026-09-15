@@ -28,16 +28,28 @@ export function startJourneyWorker() {
           throw new Error(`Step ${stepId} not found in journey definition`);
       }
 
-      const execution = await prisma.journeyExecution.create({
-          data: {
-              organizationId,
-              enrollmentId,
-              stepId,
-              type: step.type,
-              status: "RUNNING",
-              startedAt: new Date()
-          }
+      // Safe crash recovery wrapper:
+      let execution = await prisma.journeyExecution.findFirst({
+         where: { enrollmentId, stepId }
       });
+
+      if (execution?.status === "COMPLETED") {
+          logger.info({ executionId: execution.id }, "Step already completed. Idempotent skip.");
+          return;
+      }
+
+      if (!execution) {
+          execution = await prisma.journeyExecution.create({
+              data: {
+                  organizationId,
+                  enrollmentId,
+                  stepId,
+                  type: step.type,
+                  status: "RUNNING",
+                  startedAt: new Date()
+              }
+          });
+      }
 
       try {
           let nextStepId = step.nextStepId;
@@ -55,9 +67,6 @@ export function startJourneyWorker() {
                       await executeSendSms(organizationId, enrollment.lead.id, step.actionConfig?.message || "Hello");
                   }
               }
-              else if (step.actionType === "CREATE_TASK") {
-                  // Explicitly skip missing Task model mapping in current schema slice, bound outbox event later
-              }
           }
 
           if (step.type === "BRANCH" || step.type === "CONDITION") {
@@ -73,11 +82,17 @@ export function startJourneyWorker() {
       } catch (error: unknown) {
           logger.error({ error: (error as Error).message, enrollmentId, stepId }, "Journey step failed");
           await prisma.journeyExecution.update({ where: { id: execution.id }, data: { status: "FAILED", error: (error as Error).message } });
-          await prisma.journeyEnrollment.update({ where: { id: enrollmentId }, data: { status: "FAILED", error: (error as Error).message } });
+
+          if (job.attemptsMade >= (job.opts.attempts || 3) - 1) {
+              await prisma.journeyEnrollment.update({ where: { id: enrollmentId }, data: { status: "FAILED", error: (error as Error).message } });
+          }
           throw error;
       }
     },
-    { connection: redisClient }
+    {
+        connection: redisClient,
+        concurrency: 5 // Bound concurrency for ~20 org workload
+    }
   );
 
   worker.on("failed", (job, err) => {
