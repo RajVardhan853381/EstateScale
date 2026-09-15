@@ -125,6 +125,14 @@ Source: ${lead.source || "Unknown"}
             }
         });
 
+                await import("/app/src/lib/events/bus").then(m => m.publishDomainEvent({
+            eventId: crypto.randomUUID(),
+            organizationId: organization.id,
+            leadId: lead.id,
+            type: "AI_ANALYSIS_COMPLETED",
+            metadata: { score: aiResult.score.score }
+        }));
+
         return assessment;
     });
 }

@@ -1,6 +1,8 @@
 import { prisma } from "../prisma";
 import { CommunicationProvider } from "../communication/provider";
 import { TwilioProvider, MockCommunicationProvider } from "../communication/twilio";
+import { withRetry } from "../reliability/retry";
+import { auditLogger } from "../observability/logger";
 
 const getProvider = (): CommunicationProvider => {
     if (process.env.NODE_ENV === "test" || !process.env.TWILIO_ACCOUNT_SID) {
@@ -50,7 +52,6 @@ export async function executeSendSms(
     let messageId = existingMessageId || "";
 
     if (!messageId) {
-        // Automation flow: create a new message record because one wasn't queued in the UI
         const message = await prisma.message.create({
             data: {
                 organizationId,
@@ -64,7 +65,6 @@ export async function executeSendSms(
         });
         messageId = message.id;
     } else {
-        // Manual flow: update the existing QUEUED message
         await prisma.message.update({
             where: { id: messageId, organizationId },
             data: { status: "SENDING", from: orgConfig.phoneNumber }
@@ -72,30 +72,54 @@ export async function executeSendSms(
     }
 
     const provider = getProvider();
-    const result = await provider.sendSms(
-        lead.contact.phone,
-        orgConfig.phoneNumber,
-        body,
-        organizationId
-    );
 
-    if (result.success) {
-        await prisma.message.update({
-            where: { id: messageId, organizationId },
-            data: { status: "SENT", externalId: result.externalId }
-        });
-    } else {
-        await prisma.message.update({
-            where: { id: messageId, organizationId },
-            data: { status: "FAILED", error: result.error }
-        });
+    // Core Workflow Integrity: Execute actual sending through the phase-19 retry wrapper.
+    try {
+        const result = await withRetry(async () => {
+            return await provider.sendSms(
+                lead.contact!.phone!,
+                orgConfig.phoneNumber,
+                body,
+                organizationId
+            );
+        }, 3, 2000);
 
-        if (result.error === "OPT_OUT") {
-             await prisma.conversation.update({
-                 where: { id: conversation.id, organizationId },
-                 data: { status: "OPT_OUT" }
-             });
+        if (result.success) {
+            await prisma.message.update({
+                where: { id: messageId, organizationId },
+                data: { status: "SENT", externalId: result.externalId }
+            });
+
+            // Linkage: CRM activities update explicitly for downstream visibility
+            await prisma.leadActivity.create({
+                data: {
+                    organizationId,
+                    leadId,
+                    type: "CONTACTED",
+                    description: `SMS Sent successfully.`
+                }
+            });
+
+        } else {
+            await prisma.message.update({
+                where: { id: messageId, organizationId },
+                data: { status: "FAILED", error: result.error }
+            });
+
+            if (result.error === "OPT_OUT") {
+                 await prisma.conversation.update({
+                     where: { id: conversation.id, organizationId },
+                     data: { status: "OPT_OUT" }
+                 });
+            }
+            throw new Error(`SMS Provider Error: ${result.error}`);
         }
-        throw new Error(`SMS Provider Error: ${result.error}`);
+    } catch (error) {
+        auditLogger.error({ organizationId, leadId, error: (error as Error).message }, "Execute SMS critical failure");
+        await prisma.message.update({
+            where: { id: messageId, organizationId },
+            data: { status: "FAILED", error: (error as Error).message }
+        });
+        throw error;
     }
 }
