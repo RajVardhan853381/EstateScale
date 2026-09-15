@@ -49,6 +49,9 @@ model Organization {
   importJobs           ImportJob[]
   settings             Json?
   setupState           OrganizationSetupState?
+  journeys             Journey[]
+  journeyEnrollments   JourneyEnrollment[]
+  journeyExecutions    JourneyExecution[]
 }
 
 model OrganizationInvitation {
@@ -71,7 +74,7 @@ model OrganizationInvitation {
 model ImportJob {
   id             String   @id @default(cuid())
   organizationId String
-  status         String   // PENDING, PROCESSING, COMPLETED, FAILED
+  status         String // PENDING, PROCESSING, COMPLETED, FAILED
   totalRecords   Int      @default(0)
   imported       Int      @default(0)
   skipped        Int      @default(0)
@@ -105,15 +108,15 @@ model OrganizationMembership {
 }
 
 model OrganizationSetupState {
-  id                String   @id @default(cuid())
-  organizationId    String   @unique
-  currentStep       String   @default("COMPANY") // COMPANY, USERS, CRM, IMPORT, AI, COMMUNICATION, REVIEW, COMPLETE
-  completedSteps    Json?    // Array of completed step strings
-  isConfiguring     Boolean  @default(true)
-  isReadyForTest    Boolean  @default(false)
-  isReadyForActive  Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(cuid())
+  organizationId   String   @unique
+  currentStep      String   @default("COMPANY") // COMPANY, USERS, CRM, IMPORT, AI, COMMUNICATION, REVIEW, COMPLETE
+  completedSteps   Json? // Array of completed step strings
+  isConfiguring    Boolean  @default(true)
+  isReadyForTest   Boolean  @default(false)
+  isReadyForActive Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
@@ -231,7 +234,8 @@ model Lead {
   aiAssessments        AiAssessment[]
   automationExecutions AutomationExecution[]
 
-  conversations Conversation[]
+  conversations     Conversation[]
+  JourneyEnrollment JourneyEnrollment[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
@@ -497,4 +501,75 @@ model OrganizationCommunicationConfig {
 
   @@unique([organizationId, phoneNumber])
   @@index([phoneNumber])
+}
+
+// --- PHASE 16: JOURNEY & AUTOMATION ENGINE ---
+
+model Journey {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?  @db.Text
+  status         String   @default("DRAFT") // DRAFT, ACTIVE, PAUSED, ARCHIVED
+  version        Int      @default(1)
+  triggerType    String // LEAD_CREATED, LEAD_BECAME_HOT, MANUAL_ENROLLMENT, APPOINTMENT_COMPLETED, etc.
+  triggerConfig  Json?
+  steps          Json // Array of ordered steps/conditions/actions mapping the logic tree
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdBy      String?
+  updatedBy      String?
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments  JourneyEnrollment[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, triggerType])
+}
+
+model JourneyEnrollment {
+  id             String    @id @default(cuid())
+  organizationId String
+  journeyId      String
+  leadId         String
+  status         String    @default("PENDING") // PENDING, RUNNING, WAITING, PAUSED, COMPLETED, CANCELLED, FAILED
+  journeyVersion Int       @default(1)
+  currentStepId  String? // References a step node ID inside Journey.steps
+  context        Json? // Serialized bounded state (score, properties, etc.) to safely evaluate conditions
+  error          String?   @db.Text
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  journey      Journey      @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  executions JourneyExecution[]
+
+  @@unique([journeyId, leadId, status]) // Enforces "once_per_lead" policy structurally safely if pending/running
+  @@index([organizationId, status])
+  @@index([organizationId, leadId])
+}
+
+model JourneyExecution {
+  id             String    @id @default(cuid())
+  organizationId String
+  enrollmentId   String
+  stepId         String // Node ID from Journey.steps
+  type           String // ACTION, WAIT, CONDITION, BRANCH, AI_DECISION, HUMAN_APPROVAL
+  status         String    @default("PENDING") // PENDING, RUNNING, WAITING, COMPLETED, SKIPPED, FAILED, CANCELLED
+  result         Json? // Action output, condition evaluation result, or AI decision
+  error          String?   @db.Text
+  scheduledFor   DateTime? // Delay evaluation boundary
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollment   JourneyEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, enrollmentId, status])
+  @@index([scheduledFor])
 }
