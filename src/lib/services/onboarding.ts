@@ -13,7 +13,6 @@ export class OnboardingService {
         throw new Error("Organization or setup state not found");
       }
 
-      // Check mandatory requirements
       const adminCount = await tx.organizationMembership.count({
         where: {
           organizationId: org.id,
@@ -25,7 +24,6 @@ export class OnboardingService {
         throw new Error("Cannot activate: No active administrators found");
       }
 
-      // Mark as activated
       await tx.organizationSetupState.update({
         where: { organizationId: org.id },
         data: {
@@ -44,12 +42,11 @@ export class OnboardingService {
 
   static async createOrganization(data: { name: string; slug: string; adminEmail?: string }) {
     return prisma.$transaction(async (tx) => {
-      // Create Organization
       const org = await tx.organization.create({
         data: {
           name: data.name,
           slug: data.slug,
-          status: "ACTIVE", // Or INITIALIZING based on requirements
+          status: "ACTIVE",
           setupState: {
             create: {
               currentStep: "COMPANY",
@@ -65,7 +62,6 @@ export class OnboardingService {
         }
       });
 
-      // Initialize default CRM Pipeline
       const pipeline = await tx.pipeline.create({
         data: {
           organizationId: org.id,
@@ -74,7 +70,6 @@ export class OnboardingService {
         }
       });
 
-      // Initialize Pipeline Stages
       await tx.pipelineStage.createMany({
         data: [
           { organizationId: org.id, pipelineId: pipeline.id, name: "NEW", order: 1 },
@@ -87,11 +82,27 @@ export class OnboardingService {
         ]
       });
 
+      // Template Integrations: Seed the new organization with default duplicated templates
+      const globalTemplates = await tx.template.findMany({
+         where: { organizationId: null }
+      });
+
+      if (globalTemplates.length > 0) {
+         const newTemplates = globalTemplates.map(t => ({
+             organizationId: org.id,
+             type: t.type,
+             name: t.name,
+             description: t.description,
+             config: t.config ?? {}
+         }));
+         await tx.template.createMany({ data: newTemplates });
+      }
+
       let invitation = null;
       if (data.adminEmail) {
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+        expiresAt.setDate(expiresAt.getDate() + 7);
 
         invitation = await tx.organizationInvitation.create({
           data: {

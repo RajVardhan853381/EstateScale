@@ -23,6 +23,7 @@ model User {
 }
 
 model Organization {
+  templates       Template[]
   outboxEvents    OutboxEvent[]
   id        String   @id @default(cuid())
   name      String
@@ -587,4 +588,19 @@ model OutboxEvent {
   updatedAt      DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+model Template {
+  id             String   @id @default(cuid())
+  organizationId String?  // Optional: Global System Template if null, custom Org Template if set.
+  type           String   // CRM_PIPELINE, JOURNEY, AI_AGENT, EMAIL, SMS
+  name           String
+  description    String?
+  config         Json     // The structural JSON payload matching its Type
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, type])
 }
