@@ -47,7 +47,7 @@ describe("AI Structured Schema Validations", () => {
       const prompt = constructAnalysisPrompt("EstateTest", maliciousLeadNote, "Contact Info here");
 
       // Verify the untrusted data is encapsulated by boundary markers
-      expect(prompt).toContain("=== LEAD CONTEXT / INQUIRY (UNTRUSTED DATA) ===");
+      expect(prompt).toContain("=== LEAD CONTEXT / INQUIRY (UNTRUSTED USER DATA) ===");
       expect(prompt).toContain(maliciousLeadNote);
   });
 });
