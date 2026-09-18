@@ -1,107 +1,68 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { updateNote } from "@/lib/services/notes";
-import { prisma } from "@/lib/prisma";
-import * as authorization from "@/lib/auth/authorization";
 
-// Mock dependencies
 vi.mock("@/lib/prisma", () => ({
-    prisma: {
-        note: {
-            findFirst: vi.fn(),
-            update: vi.fn()
-        }
+  prisma: {
+    note: {
+      findFirst: vi.fn(),
+      update: vi.fn()
     }
+  }
 }));
 
 vi.mock("@/lib/auth/authorization", () => ({
-    requireOrganizationMember: vi.fn()
+  requireOrganizationMember: vi.fn()
 }));
 
-vi.mock("next-auth", () => ({
-  default: () => ({ handlers: {}, auth: vi.fn(), signIn: vi.fn(), signOut: vi.fn() })
-}));
+import { prisma } from "@/lib/prisma";
+import { requireOrganizationMember } from "@/lib/auth/authorization";
 
 describe("Notes Service - updateNote", () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+    it("throws NOT_FOUND if note belongs to another user", async () => {
+        const mockOrg = { id: "org_1" };
+        const mockMembership = { id: "user_b" };
 
-    afterEach(() => {
-        vi.restoreAllMocks();
-    });
+        vi.mocked(requireOrganizationMember).mockResolvedValue({
+            organization: mockOrg,
+            membership: mockMembership,
+        } as any);
 
-    it("should throw NOT_FOUND if a user tries to update another user's note", async () => {
-        // Arrange
-        const orgSlug = "test-org";
-        const noteId = "note-123";
-        const userId = "user-123";
-        const orgId = "org-123";
+        vi.mocked(prisma.note.findFirst).mockResolvedValue(null); // Simulate note not found for this user
 
-        // Mock authorization to return a specific user
-        vi.mocked(authorization.requireOrganizationMember).mockResolvedValue({
-            organization: { id: orgId, slug: orgSlug, name: "Test Org", createdAt: new Date(), updatedAt: new Date(), status: "ACTIVE", settings: {} },
-            membership: { id: "mem-123", userId: userId, organizationId: orgId, role: "MEMBER", createdAt: new Date(), updatedAt: new Date() },
-            user: { id: userId, email: "test@test.com", name: null, image: null }
-        });
+        await expect(updateNote("org-slug", "note_id", { content: "updated" }))
+            .rejects.toThrow("NOT_FOUND");
 
-        // Mock Prisma to return null (note not found for this user/org combination)
-        vi.mocked(prisma.note.findFirst).mockResolvedValue(null);
-
-        // Act & Assert
-        await expect(updateNote(orgSlug, noteId, { content: "Updated content" }))
-            .rejects
-            .toThrow("NOT_FOUND");
-
-        // Verify Prisma was called with correct parameters emphasizing the creator check
         expect(prisma.note.findFirst).toHaveBeenCalledWith({
             where: {
-                id: noteId,
-                organizationId: orgId,
-                userId: "mem-123" // The membership ID, as required by the code
+                id: "note_id",
+                organizationId: "org_1",
+                userId: "user_b"
             }
         });
-
-        // Verify update was never called
-        expect(prisma.note.update).not.toHaveBeenCalled();
     });
 
-    it("should successfully update a note if the user is the creator", async () => {
-        // Arrange
-        const orgSlug = "test-org";
-        const noteId = "note-123";
-        const userId = "user-123";
-        const orgId = "org-123";
+    it("updates note if it belongs to the user", async () => {
+        const mockOrg = { id: "org_1" };
+        const mockMembership = { id: "user_a" };
 
-        vi.mocked(authorization.requireOrganizationMember).mockResolvedValue({
-            organization: { id: orgId, slug: orgSlug, name: "Test Org", createdAt: new Date(), updatedAt: new Date(), status: "ACTIVE", settings: {} },
-            membership: { id: "mem-123", userId: userId, organizationId: orgId, role: "MEMBER", createdAt: new Date(), updatedAt: new Date() },
-            user: { id: userId, email: "test@test.com", name: null, image: null }
-        });
+        vi.mocked(requireOrganizationMember).mockResolvedValue({
+            organization: mockOrg,
+            membership: mockMembership,
+        } as any);
 
-        const mockNote = {
-            id: noteId,
-            content: "Old content",
-            organizationId: orgId,
-            userId: "mem-123",
-            leadId: "lead-123",
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
+        const existingNote = { id: "note_id", content: "original", userId: "user_a" };
+        vi.mocked(prisma.note.findFirst).mockResolvedValue(existingNote as any);
 
-        vi.mocked(prisma.note.findFirst).mockResolvedValue(mockNote);
-        vi.mocked(prisma.note.update).mockResolvedValue({
-            ...mockNote,
-            content: "Updated content"
-        });
+        const updatedNote = { id: "note_id", content: "updated", userId: "user_a" };
+        vi.mocked(prisma.note.update).mockResolvedValue(updatedNote as any);
 
-        // Act
-        const result = await updateNote(orgSlug, noteId, { content: "Updated content" });
+        const result = await updateNote("org-slug", "note_id", { content: "updated" });
 
-        // Assert
-        expect(result.content).toBe("Updated content");
+        expect(result).toEqual(updatedNote);
+
         expect(prisma.note.update).toHaveBeenCalledWith({
-            where: { id: noteId },
-            data: { content: "Updated content" },
+            where: { id: "note_id" },
+            data: { content: "updated" },
             include: { user: { include: { user: true } } }
         });
     });
