@@ -1,9 +1,9 @@
-import { prisma } from "@/lib/prisma";
-import { requireAuthenticatedUser } from "@/lib/auth/authorization";
-import { OnboardingService } from "@/lib/services/onboarding";
-import { revalidatePath } from "next/cache";
+import { prisma } from '@/lib/prisma';
+import { requireAuthenticatedUser } from '@/lib/auth/authorization';
+import { OnboardingService } from '@/lib/services/onboarding';
+import { revalidatePath } from 'next/cache';
 
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
 export default async function AdminOnboardingPage() {
   const user = await requireAuthenticatedUser();
@@ -11,30 +11,30 @@ export default async function AdminOnboardingPage() {
   // In our simplified setup, we'll check for a specific email or rely on a system role.
   // For safety without a full global RBAC, we'll just deny access to all normal users by default
   // unless they are explicitly authorized. Here, we'll mock it by checking an env var or a hardcoded list.
-  if (user.email !== "superadmin@estatescale.com") {
-      redirect("/api/auth/signin");
+  if (user.email !== 'superadmin@estatescale.com') {
+    redirect('/api/auth/signin');
   }
 
   const orgs = await prisma.organization.findMany({
     include: {
       setupState: true,
       _count: {
-        select: { memberships: true, leads: true }
-      }
+        select: { memberships: true, leads: true },
+      },
     },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: 'desc' },
   });
 
   async function createOrgAction(formData: FormData) {
-    "use server";
-    const name = formData.get("name") as string;
-    const slug = formData.get("slug") as string;
-    const adminEmail = formData.get("adminEmail") as string;
+    'use server';
+    const name = formData.get('name') as string;
+    const slug = formData.get('slug') as string;
+    const adminEmail = formData.get('adminEmail') as string;
 
     if (!name || !slug) return;
 
     await OnboardingService.createOrganization({ name, slug, adminEmail });
-    revalidatePath("/admin/onboarding");
+    revalidatePath('/admin/onboarding');
   }
 
   return (
@@ -47,17 +47,37 @@ export default async function AdminOnboardingPage() {
           <form action={createOrgAction} className="flex flex-col gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Name</label>
-              <input type="text" name="name" required className="w-full border rounded p-2" placeholder="Acme Real Estate" />
+              <input
+                type="text"
+                name="name"
+                required
+                className="w-full border rounded p-2"
+                placeholder="Acme Real Estate"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Slug (URL)</label>
-              <input type="text" name="slug" required className="w-full border rounded p-2" placeholder="acme" />
+              <input
+                type="text"
+                name="slug"
+                required
+                className="w-full border rounded p-2"
+                placeholder="acme"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Primary Admin Email</label>
-              <input type="email" name="adminEmail" className="w-full border rounded p-2" placeholder="admin@acme.com" />
+              <input
+                type="email"
+                name="adminEmail"
+                className="w-full border rounded p-2"
+                placeholder="admin@acme.com"
+              />
             </div>
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            <button
+              type="submit"
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
               Create Organization
             </button>
           </form>
@@ -87,7 +107,7 @@ export default async function AdminOnboardingPage() {
             </tr>
           </thead>
           <tbody>
-            {orgs.map(org => (
+            {orgs.map((org) => (
               <tr key={org.id} className="border-b last:border-b-0 hover:bg-gray-50">
                 <td className="p-4">
                   <div className="font-medium">{org.name}</div>
@@ -99,7 +119,7 @@ export default async function AdminOnboardingPage() {
                   </span>
                 </td>
                 <td className="p-4 text-sm">
-                  {org.setupState ? org.setupState.currentStep : "UNKNOWN"}
+                  {org.setupState ? org.setupState.currentStep : 'UNKNOWN'}
                 </td>
                 <td className="p-4 text-sm">{org._count.memberships}</td>
                 <td className="p-4 text-sm">{org._count.leads}</td>
