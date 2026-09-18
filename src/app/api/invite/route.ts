@@ -34,7 +34,6 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: 'Invitation created',
-      token, // Returning token for test purposes or if we want to show it in UI
     });
   } catch (error: unknown) {
     if (error instanceof Error) {

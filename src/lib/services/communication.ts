@@ -7,10 +7,10 @@ import { publishDomainEvent } from '../events/bus';
 import crypto from 'crypto';
 
 const getProvider = (): CommunicationProvider => {
-  if (process.env.NODE_ENV === 'test' || !process.env.TWILIO_ACCOUNT_SID) {
-    return new MockCommunicationProvider();
-  }
-  return new TwilioProvider();
+    if (process.env.NODE_ENV === "test" || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+        return new MockCommunicationProvider();
+    }
+    return new TwilioProvider();
 };
 
 export async function executeSendSms(
