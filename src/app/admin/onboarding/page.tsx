@@ -16,10 +16,10 @@ export default async function AdminOnboardingPage() {
     include: {
       setupState: true,
       _count: {
-        select: { memberships: true, leads: true }
-      }
+        select: { memberships: true, leads: true },
+      },
     },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: 'desc' },
   });
 
   return (
