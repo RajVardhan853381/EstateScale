@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requirePlatformAdmin } from "@/lib/auth/platform-authorization";
 import { requireAuthenticatedUser } from "@/lib/auth/authorization";
 import { redirect } from "next/navigation";
 import { CreateOrgForm } from "./_components/create-org-form";
@@ -11,6 +12,7 @@ export default async function AdminOnboardingPage() {
   if (user.email !== "superadmin@estatescale.com") {
       redirect("/api/auth/signin");
   }
+
 
   const orgs = await prisma.organization.findMany({
     include: {
