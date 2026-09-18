@@ -1,7 +1,7 @@
-import { prisma } from "@/lib/prisma";
-import { leadSchema, paginationSchema, updateLeadSchema } from "@/lib/validations/crm";
-import { requireOrganizationMember } from "@/lib/auth/authorization";
-import { LeadActivityType, LeadStatus, Prisma } from "@prisma/client";
+import { prisma } from '@/lib/prisma';
+import { leadSchema, paginationSchema, updateLeadSchema } from '@/lib/validations/crm';
+import { requireOrganizationMember } from '@/lib/auth/authorization';
+import { LeadActivityType, LeadStatus, Prisma } from '@prisma/client';
 
 export async function createLead(slug: string, data: unknown) {
   const { organization, membership } = await requireOrganizationMember(slug);
@@ -39,7 +39,7 @@ export async function createLead(slug: string, data: unknown) {
     }
 
     if (!finalContactId) {
-      throw new Error("VALIDATION_ERROR: Contact is required.");
+      throw new Error('VALIDATION_ERROR: Contact is required.');
     }
 
     // Validate assigned agent belongs to organization
@@ -48,7 +48,7 @@ export async function createLead(slug: string, data: unknown) {
         where: { id: validated.assignedUserId },
       });
       if (!agentMembership || agentMembership.organizationId !== organization.id) {
-        throw new Error("VALIDATION_ERROR: Assigned user is not valid for this organization.");
+        throw new Error('VALIDATION_ERROR: Assigned user is not valid for this organization.');
       }
     }
 
@@ -58,10 +58,12 @@ export async function createLead(slug: string, data: unknown) {
         where: { id: validated.pipelineStageId },
       });
       if (!stage || stage.organizationId !== organization.id) {
-         throw new Error("VALIDATION_ERROR: Pipeline stage is not valid for this organization.");
+        throw new Error('VALIDATION_ERROR: Pipeline stage is not valid for this organization.');
       }
       if (validated.pipelineId && stage.pipelineId !== validated.pipelineId) {
-          throw new Error("VALIDATION_ERROR: Pipeline stage does not belong to the selected pipeline.");
+        throw new Error(
+          'VALIDATION_ERROR: Pipeline stage does not belong to the selected pipeline.'
+        );
       }
     }
 
@@ -90,7 +92,7 @@ export async function createLead(slug: string, data: unknown) {
         leadId: lead.id,
         userId: membership.id,
         type: LeadActivityType.CREATED,
-        description: "Lead created",
+        description: 'Lead created',
       },
     });
 
@@ -117,20 +119,20 @@ export async function getLead(slug: string, leadId: string) {
         include: { tag: true },
       },
       notes: {
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         include: {
-           user: { include: { user: true } }
-        }
+          user: { include: { user: true } },
+        },
       },
       aiAssessments: {
-        orderBy: { createdAt: "desc" },
-        take: 1
+        orderBy: { createdAt: 'desc' },
+        take: 1,
       },
     },
   });
 
   if (!lead) {
-    throw new Error("NOT_FOUND");
+    throw new Error('NOT_FOUND');
   }
 
   return lead;
@@ -147,16 +149,18 @@ export async function listLeads(slug: string, queryParams: Record<string, unknow
 
   if (typeof queryParams.status === 'string') whereClause.status = queryParams.status as LeadStatus;
   if (typeof queryParams.source === 'string') whereClause.source = queryParams.source;
-  if (typeof queryParams.assignedUserId === 'string') whereClause.assignedUserId = queryParams.assignedUserId;
-  if (typeof queryParams.pipelineStageId === 'string') whereClause.pipelineStageId = queryParams.pipelineStageId;
+  if (typeof queryParams.assignedUserId === 'string')
+    whereClause.assignedUserId = queryParams.assignedUserId;
+  if (typeof queryParams.pipelineStageId === 'string')
+    whereClause.pipelineStageId = queryParams.pipelineStageId;
 
   if (typeof queryParams.search === 'string' && queryParams.search) {
     whereClause.contact = {
       OR: [
-        { firstName: { contains: queryParams.search, mode: "insensitive" } },
-        { lastName: { contains: queryParams.search, mode: "insensitive" } },
-        { email: { contains: queryParams.search, mode: "insensitive" } },
-        { phone: { contains: queryParams.search, mode: "insensitive" } },
+        { firstName: { contains: queryParams.search, mode: 'insensitive' } },
+        { lastName: { contains: queryParams.search, mode: 'insensitive' } },
+        { email: { contains: queryParams.search, mode: 'insensitive' } },
+        { phone: { contains: queryParams.search, mode: 'insensitive' } },
       ],
     };
   }
@@ -164,7 +168,7 @@ export async function listLeads(slug: string, queryParams: Record<string, unknow
   const [leads, total] = await Promise.all([
     prisma.lead.findMany({
       where: whereClause,
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
       include: {
@@ -172,9 +176,9 @@ export async function listLeads(slug: string, queryParams: Record<string, unknow
         assignedUser: { include: { user: true } },
         pipelineStage: true,
         activities: {
-           orderBy: { createdAt: 'desc' },
-           take: 1,
-        }
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
     }),
     prisma.lead.count({
@@ -199,10 +203,10 @@ export async function updateLead(slug: string, data: unknown) {
 
   return await prisma.$transaction(async (tx) => {
     const existingLead = await tx.lead.findFirst({
-       where: { id: validated.id, organizationId: organization.id }
+      where: { id: validated.id, organizationId: organization.id },
     });
 
-    if (!existingLead) throw new Error("NOT_FOUND");
+    if (!existingLead) throw new Error('NOT_FOUND');
 
     const lead = await tx.lead.update({
       where: { id: validated.id },
@@ -222,7 +226,7 @@ export async function updateLead(slug: string, data: unknown) {
         leadId: lead.id,
         userId: membership.id,
         type: LeadActivityType.UPDATED,
-        description: "Lead details updated",
+        description: 'Lead details updated',
       },
     });
 
@@ -235,18 +239,18 @@ export async function assignLead(slug: string, leadId: string, assignedUserId: s
 
   return await prisma.$transaction(async (tx) => {
     const existingLead = await tx.lead.findFirst({
-       where: { id: leadId, organizationId: organization.id }
+      where: { id: leadId, organizationId: organization.id },
     });
 
-    if (!existingLead) throw new Error("NOT_FOUND");
+    if (!existingLead) throw new Error('NOT_FOUND');
 
     if (assignedUserId) {
-        const agentMembership = await tx.organizationMembership.findUnique({
-            where: { id: assignedUserId },
-        });
-        if (!agentMembership || agentMembership.organizationId !== organization.id) {
-            throw new Error("VALIDATION_ERROR: Assigned user is not valid for this organization.");
-        }
+      const agentMembership = await tx.organizationMembership.findUnique({
+        where: { id: assignedUserId },
+      });
+      if (!agentMembership || agentMembership.organizationId !== organization.id) {
+        throw new Error('VALIDATION_ERROR: Assigned user is not valid for this organization.');
+      }
     }
 
     const lead = await tx.lead.update({
@@ -260,7 +264,7 @@ export async function assignLead(slug: string, leadId: string, assignedUserId: s
         leadId: lead.id,
         userId: membership.id,
         type: LeadActivityType.ASSIGNED,
-        description: assignedUserId ? "Lead assigned to agent" : "Lead unassigned",
+        description: assignedUserId ? 'Lead assigned to agent' : 'Lead unassigned',
       },
     });
 
@@ -269,42 +273,44 @@ export async function assignLead(slug: string, leadId: string, assignedUserId: s
 }
 
 export async function changeLeadStage(slug: string, leadId: string, pipelineStageId: string) {
-    const { organization, membership } = await requireOrganizationMember(slug);
+  const { organization, membership } = await requireOrganizationMember(slug);
 
-    return await prisma.$transaction(async (tx) => {
-      const existingLead = await tx.lead.findFirst({
-         where: { id: leadId, organizationId: organization.id }
-      });
-
-      if (!existingLead) throw new Error("NOT_FOUND");
-
-      const stage = await tx.pipelineStage.findUnique({
-        where: { id: pipelineStageId },
-      });
-
-      if (!stage || stage.organizationId !== organization.id) {
-         throw new Error("VALIDATION_ERROR: Pipeline stage is not valid for this organization.");
-      }
-
-      if (existingLead.pipelineId && stage.pipelineId !== existingLead.pipelineId) {
-          throw new Error("VALIDATION_ERROR: Pipeline stage does not belong to the lead's current pipeline.");
-      }
-
-      const lead = await tx.lead.update({
-        where: { id: leadId },
-        data: { pipelineStageId },
-      });
-
-      await tx.leadActivity.create({
-        data: {
-          organizationId: organization.id,
-          leadId: lead.id,
-          userId: membership.id,
-          type: LeadActivityType.STATUS_CHANGED,
-          description: `Lead moved to stage: ${stage.name}`,
-        },
-      });
-
-      return lead;
+  return await prisma.$transaction(async (tx) => {
+    const existingLead = await tx.lead.findFirst({
+      where: { id: leadId, organizationId: organization.id },
     });
+
+    if (!existingLead) throw new Error('NOT_FOUND');
+
+    const stage = await tx.pipelineStage.findUnique({
+      where: { id: pipelineStageId },
+    });
+
+    if (!stage || stage.organizationId !== organization.id) {
+      throw new Error('VALIDATION_ERROR: Pipeline stage is not valid for this organization.');
+    }
+
+    if (existingLead.pipelineId && stage.pipelineId !== existingLead.pipelineId) {
+      throw new Error(
+        "VALIDATION_ERROR: Pipeline stage does not belong to the lead's current pipeline."
+      );
+    }
+
+    const lead = await tx.lead.update({
+      where: { id: leadId },
+      data: { pipelineStageId },
+    });
+
+    await tx.leadActivity.create({
+      data: {
+        organizationId: organization.id,
+        leadId: lead.id,
+        userId: membership.id,
+        type: LeadActivityType.STATUS_CHANGED,
+        description: `Lead moved to stage: ${stage.name}`,
+      },
+    });
+
+    return lead;
+  });
 }
