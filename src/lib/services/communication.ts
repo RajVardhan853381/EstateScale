@@ -5,7 +5,7 @@ import { withRetry } from "../reliability/retry";
 import { auditLogger } from "../observability/logger";
 
 const getProvider = (): CommunicationProvider => {
-    if (process.env.NODE_ENV === "test" || !process.env.TWILIO_ACCOUNT_SID) {
+    if (process.env.NODE_ENV === "test" || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
         return new MockCommunicationProvider();
     }
     return new TwilioProvider();
