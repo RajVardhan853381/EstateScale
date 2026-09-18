@@ -125,7 +125,7 @@ Source: ${lead.source || "Unknown"}
             }
         });
 
-                await import("/app/src/lib/events/bus").then(m => m.publishDomainEvent({
+                await import("@/lib/events/bus").then(m => m.publishDomainEvent({
             eventId: crypto.randomUUID(),
             organizationId: organization.id,
             leadId: lead.id,
