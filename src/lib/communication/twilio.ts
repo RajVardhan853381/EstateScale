@@ -15,8 +15,6 @@ export class TwilioProvider implements CommunicationProvider {
         this.client = twilio(accountSid, authToken);
     }
 
-    this.client = twilio(accountSid, authToken);
-  }
 
   async sendSms(
     to: string,

@@ -8,6 +8,9 @@ import { prisma } from '@/lib/prisma';
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt' },
+  pages: {
+    signIn: '/login',
+  },
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || '',
@@ -24,6 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        try {
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
         });
@@ -43,6 +47,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
         };
+        } catch (error) {
+          console.error("Database connection error during login:", error);
+          return null;
+        }
       },
     }),
   ],

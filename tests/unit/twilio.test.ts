@@ -18,7 +18,7 @@ describe("TwilioProvider", () => {
         process.env.TWILIO_AUTH_TOKEN = "DUMMY";
 
         expect(() => new TwilioProvider()).toThrowError(
-            "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set to use TwilioProvider"
+            "Missing Twilio credentials (TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN)."
         );
     });
 
@@ -27,7 +27,7 @@ describe("TwilioProvider", () => {
         delete process.env.TWILIO_AUTH_TOKEN;
 
         expect(() => new TwilioProvider()).toThrowError(
-            "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set to use TwilioProvider"
+            "Missing Twilio credentials (TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN)."
         );
     });
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently \"next dev\" \"npm run start:worker\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -12,7 +12,8 @@
     "test": "vitest run --pool=threads --poolOptions.threads.singleThread=true",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "start:worker": "tsx src/worker.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.53",
@@ -47,6 +48,7 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^10.0.5",
     "dotenv": "^17.4.2",
     "eslint": "^9.21.0",
     "eslint-config-next": "16.3.3",
@@ -58,5 +60,8 @@
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vitest": "^3.0.6"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
