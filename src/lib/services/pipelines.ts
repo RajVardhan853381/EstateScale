@@ -1,14 +1,14 @@
-import { prisma } from '@/lib/prisma';
+import { prisma } from "@/lib/prisma";
 
-export const DEFAULT_PIPELINE_NAME = 'Real Estate Sales';
+export const DEFAULT_PIPELINE_NAME = "Real Estate Sales";
 export const DEFAULT_STAGES = [
-  'NEW',
-  'CONTACTED',
-  'QUALIFIED',
-  'FOLLOW_UP',
-  'APPOINTMENT_BOOKED',
-  'CLOSED_WON',
-  'CLOSED_LOST',
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+  "FOLLOW_UP",
+  "APPOINTMENT_BOOKED",
+  "CLOSED_WON",
+  "CLOSED_LOST",
 ];
 
 export async function backfillDefaultPipeline(organizationId: string) {
@@ -35,7 +35,7 @@ export async function backfillDefaultPipeline(organizationId: string) {
       data: {
         organizationId,
         name: DEFAULT_PIPELINE_NAME,
-        description: 'Default Real Estate Sales Pipeline',
+        description: "Default Real Estate Sales Pipeline",
         stages: {
           create: DEFAULT_STAGES.map((name, index) => ({
             organizationId,

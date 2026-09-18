@@ -1,7 +1,7 @@
-import { listLeads } from '@/lib/services/leads';
-import { LeadTable } from '@/components/crm/LeadTable';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { listLeads } from "@/lib/services/leads";
+import { LeadTable } from "@/components/crm/LeadTable";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export default async function LeadsPage(props: {
   params: Promise<{ slug: string }>;
@@ -11,7 +11,7 @@ export default async function LeadsPage(props: {
   const params = await props.params;
 
   const page = searchParams.page ? parseInt(searchParams.page, 10) : 1;
-  const search = searchParams.search || '';
+  const search = searchParams.search || "";
 
   const data = await listLeads(params.slug, {
     page,
@@ -34,27 +34,15 @@ export default async function LeadsPage(props: {
           <LeadTable leads={data.leads} organizationSlug={params.slug} />
 
           <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
-            <div>
-              Showing page {data.pagination.page} of {data.pagination.totalPages}
-            </div>
-            <div className="space-x-2">
-              {data.pagination.page > 1 && (
-                <a
-                  href={`/org/${params.slug}/leads?page=${data.pagination.page - 1}`}
-                  className="px-3 py-1 border rounded hover:bg-gray-50"
-                >
-                  Previous
-                </a>
-              )}
-              {data.pagination.page < data.pagination.totalPages && (
-                <a
-                  href={`/org/${params.slug}/leads?page=${data.pagination.page + 1}`}
-                  className="px-3 py-1 border rounded hover:bg-gray-50"
-                >
-                  Next
-                </a>
-              )}
-            </div>
+             <div>Showing page {data.pagination.page} of {data.pagination.totalPages}</div>
+             <div className="space-x-2">
+                 {data.pagination.page > 1 && (
+                     <a href={`/org/${params.slug}/leads?page=${data.pagination.page - 1}`} className="px-3 py-1 border rounded hover:bg-gray-50">Previous</a>
+                 )}
+                 {data.pagination.page < data.pagination.totalPages && (
+                     <a href={`/org/${params.slug}/leads?page=${data.pagination.page + 1}`} className="px-3 py-1 border rounded hover:bg-gray-50">Next</a>
+                 )}
+             </div>
           </div>
         </CardContent>
       </Card>

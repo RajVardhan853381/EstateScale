@@ -1,7 +1,7 @@
-import { prisma } from '@/lib/prisma';
-import { tagSchema } from '@/lib/validations/crm';
-import { requireOrganizationMember } from '@/lib/auth/authorization';
-import { LeadActivityType } from '@prisma/client';
+import { prisma } from "@/lib/prisma";
+import { tagSchema } from "@/lib/validations/crm";
+import { requireOrganizationMember } from "@/lib/auth/authorization";
+import { LeadActivityType } from "@prisma/client";
 
 export async function createTag(slug: string, data: unknown) {
   const { organization } = await requireOrganizationMember(slug);
@@ -27,7 +27,7 @@ export async function listTags(slug: string) {
 
   return prisma.tag.findMany({
     where: { organizationId: organization.id },
-    orderBy: { name: 'asc' },
+    orderBy: { name: "asc" },
   });
 }
 
@@ -36,19 +36,19 @@ export async function addTagToLead(slug: string, leadId: string, tagId: string) 
 
   return await prisma.$transaction(async (tx) => {
     const lead = await tx.lead.findFirst({
-      where: { id: leadId, organizationId: organization.id },
+        where: { id: leadId, organizationId: organization.id }
     });
-    if (!lead) throw new Error('NOT_FOUND');
+    if (!lead) throw new Error("NOT_FOUND");
 
     const tag = await tx.tag.findFirst({
-      where: { id: tagId, organizationId: organization.id },
+        where: { id: tagId, organizationId: organization.id }
     });
-    if (!tag) throw new Error('NOT_FOUND');
+    if (!tag) throw new Error("NOT_FOUND");
 
     const existingLink = await tx.leadTag.findUnique({
-      where: {
-        leadId_tagId: { leadId, tagId },
-      },
+        where: {
+            leadId_tagId: { leadId, tagId }
+        }
     });
 
     if (existingLink) return existingLink;
@@ -76,18 +76,18 @@ export async function removeTagFromLead(slug: string, leadId: string, tagId: str
 
   return await prisma.$transaction(async (tx) => {
     const lead = await tx.lead.findFirst({
-      where: { id: leadId, organizationId: organization.id },
+        where: { id: leadId, organizationId: organization.id }
     });
-    if (!lead) throw new Error('NOT_FOUND');
+    if (!lead) throw new Error("NOT_FOUND");
 
     const tag = await tx.tag.findFirst({
-      where: { id: tagId, organizationId: organization.id },
+        where: { id: tagId, organizationId: organization.id }
     });
-    if (!tag) throw new Error('NOT_FOUND');
+    if (!tag) throw new Error("NOT_FOUND");
 
     await tx.leadTag.delete({
       where: {
-        leadId_tagId: { leadId, tagId },
+        leadId_tagId: { leadId, tagId }
       },
     });
 
