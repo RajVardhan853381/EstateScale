@@ -1,7 +1,7 @@
-import { prisma } from '../prisma';
-import { auditLogger } from '../observability/logger';
+import { prisma } from "../prisma";
+import { auditLogger } from "../observability/logger";
 
-export type TemplateType = 'CRM_PIPELINE' | 'JOURNEY' | 'AI_AGENT' | 'SMS';
+export type TemplateType = "CRM_PIPELINE" | "JOURNEY" | "AI_AGENT" | "SMS";
 
 export class TemplateService {
   /**
@@ -12,11 +12,11 @@ export class TemplateService {
       where: {
         OR: [
           { organizationId: null }, // Global defaults
-          { organizationId }, // Tenant specific
+          { organizationId }        // Tenant specific
         ],
-        ...(type && { type }),
+        ...(type && { type })
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" }
     });
   }
 
@@ -25,18 +25,16 @@ export class TemplateService {
    */
   static async duplicateTemplate(organizationId: string, templateId: string, newName: string) {
     const source = await prisma.template.findUnique({
-      where: { id: templateId },
+      where: { id: templateId }
     });
 
     if (!source) {
-      throw new Error('Template not found');
+      throw new Error("Template not found");
     }
 
     // Security Check: Ensure the user isn't copying another private tenant's template
     if (source.organizationId && source.organizationId !== organizationId) {
-      throw new Error(
-        'Forbidden: Tenant isolation violation. Cannot copy template from another organization.'
-      );
+      throw new Error("Forbidden: Tenant isolation violation. Cannot copy template from another organization.");
     }
 
     const newTemplate = await prisma.template.create({
@@ -45,14 +43,11 @@ export class TemplateService {
         type: source.type,
         name: newName,
         description: source.description,
-        config: source.config ?? {},
-      },
+        config: source.config ?? {}
+      }
     });
 
-    auditLogger.info(
-      { organizationId, templateId: newTemplate.id, action: 'TEMPLATE_DUPLICATED' },
-      'Template duplicated into tenant workspace'
-    );
+    auditLogger.info({ organizationId, templateId: newTemplate.id, action: "TEMPLATE_DUPLICATED" }, "Template duplicated into tenant workspace");
 
     return newTemplate;
   }
@@ -60,33 +55,25 @@ export class TemplateService {
   /**
    * Modifies a Tenant-Owned Template configuration safely.
    */
-  static async updateTemplate(
-    organizationId: string,
-    templateId: string,
-    updates: { name?: string; config?: object; isActive?: boolean }
-  ) {
+  static async updateTemplate(organizationId: string, templateId: string, updates: { name?: string; config?: object; isActive?: boolean }) {
     const target = await prisma.template.findUnique({
-      where: { id: templateId },
+      where: { id: templateId }
     });
 
-    if (!target) throw new Error('Template not found');
-    if (!target.organizationId) throw new Error('Forbidden: Cannot modify Global System templates');
-    if (target.organizationId !== organizationId)
-      throw new Error('Forbidden: Tenant isolation violation');
+    if (!target) throw new Error("Template not found");
+    if (!target.organizationId) throw new Error("Forbidden: Cannot modify Global System templates");
+    if (target.organizationId !== organizationId) throw new Error("Forbidden: Tenant isolation violation");
 
     const updated = await prisma.template.update({
       where: { id: templateId },
       data: {
         ...(updates.name && { name: updates.name }),
         ...(updates.config && { config: updates.config }),
-        ...(updates.isActive !== undefined && { isActive: updates.isActive }),
-      },
+        ...(updates.isActive !== undefined && { isActive: updates.isActive })
+      }
     });
 
-    auditLogger.info(
-      { organizationId, templateId, action: 'TEMPLATE_UPDATED' },
-      'Template updated'
-    );
+    auditLogger.info({ organizationId, templateId, action: "TEMPLATE_UPDATED" }, "Template updated");
 
     return updated;
   }

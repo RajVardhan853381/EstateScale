@@ -1,5 +1,5 @@
-import { requireOrganizationMember } from '@/lib/auth/authorization';
-import { notFound } from 'next/navigation';
+import { requireOrganizationMember } from "@/lib/auth/authorization";
+import { notFound } from "next/navigation";
 
 export default async function OrganizationDashboard({
   params,
@@ -16,12 +16,12 @@ export default async function OrganizationDashboard({
     membership = result.membership;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      if (error.message.includes('NEXT_REDIRECT') || error.message.includes('signin')) {
+      if (error.message.includes("NEXT_REDIRECT") || error.message.includes("signin")) {
         throw error;
       }
       if (
-        error.message === 'Organization not found' ||
-        error.message === 'Forbidden: Not a member of this organization'
+        error.message === "Organization not found" ||
+        error.message === "Forbidden: Not a member of this organization"
       ) {
         notFound();
       }
@@ -50,12 +50,8 @@ export default async function OrganizationDashboard({
             <h3 className="font-semibold leading-none tracking-tight">Welcome</h3>
           </div>
           <div className="p-6 pt-0">
-            <p>
-              Your role is: <strong>{membership.role}</strong>.
-            </p>
-            <p className="mt-4 text-gray-600">
-              This data is securely isolated to your organization.
-            </p>
+            <p>Your role is: <strong>{membership.role}</strong>.</p>
+            <p className="mt-4 text-gray-600">This data is securely isolated to your organization.</p>
           </div>
         </div>
         <div className="rounded-xl border bg-card text-card-foreground shadow-sm">

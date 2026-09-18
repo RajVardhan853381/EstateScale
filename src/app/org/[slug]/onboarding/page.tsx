@@ -1,22 +1,20 @@
-import { prisma } from '@/lib/prisma';
-import { requireOrganizationMember } from '@/lib/auth/authorization';
-import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
-import { redirect } from 'next/navigation';
+import { prisma } from "@/lib/prisma";
+import { requireOrganizationMember } from "@/lib/auth/authorization";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { redirect } from "next/navigation";
 
-export default async function OnboardingContainerPage(props: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function OnboardingContainerPage(props: { params: Promise<{ slug: string }> }) {
   const params = await props.params;
   const slug = params.slug;
 
   const { organization, membership } = await requireOrganizationMember(slug);
 
-  if (membership.role !== 'OWNER' && membership.role !== 'ADMIN') {
+  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
     redirect(`/org/${slug}/dashboard`);
   }
 
   const setupState = await prisma.organizationSetupState.findUnique({
-    where: { organizationId: organization.id },
+    where: { organizationId: organization.id }
   });
 
   if (!setupState || !setupState.isConfiguring) {
@@ -29,7 +27,9 @@ export default async function OnboardingContainerPage(props: {
         <h1 className="text-3xl font-extrabold text-gray-900">
           Welcome to EstateScale, {organization.name}!
         </h1>
-        <p className="mt-2 text-lg text-gray-600">Let&apos;s get your workspace set up.</p>
+        <p className="mt-2 text-lg text-gray-600">
+          Let&apos;s get your workspace set up.
+        </p>
       </div>
 
       <OnboardingWizard slug={slug} initialState={setupState} />

@@ -8,8 +8,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('CRM E2E Flow', () => {
   test('Unauthenticated user is redirected when attempting to access CRM', async ({ page }) => {
-    await page.goto('/org/test-org/leads');
-    // NextAuth's requireAuthenticatedUser() will redirect to the signin page
-    await expect(page).toHaveURL(/.*\/api\/auth\/signin.*/);
+      await page.goto('/org/test-org/leads');
+      // NextAuth's requireAuthenticatedUser() will redirect to the signin page
+      await expect(page).toHaveURL(/.*\/api\/auth\/signin.*/);
   });
 });
