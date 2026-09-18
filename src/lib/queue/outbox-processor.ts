@@ -1,6 +1,7 @@
 import { prisma } from "../prisma";
 import { enqueueAutomationJob, AutomationJobPayload } from "./producer";
 import { auditLogger } from "../observability/logger";
+import { OutboxEvent } from "@prisma/client";
 
 export async function processOutboxEvents() {
     // Lock events to this worker safely using PostgreSQL FOR UPDATE SKIP LOCKED pattern natively supported by updating with a status filter
@@ -25,32 +26,49 @@ export async function processOutboxEvents() {
 
         auditLogger.info({ count: events.length }, "Processing outbox batch");
 
-        for (const event of events) {
+        const claimedEvents: OutboxEvent[] = [];
+
+        // Execute claims in parallel with Promise.allSettled to eliminate N serial round-trips.
+        // Each claim remains an atomic single update bounded by status: "PENDING", preventing race conditions.
+        // If another worker claims an event concurrently, the update will throw an error and fail safely, which we ignore.
+        const claimPromises = events.map(event =>
+            prisma.outboxEvent.update({
+                where: { id: event.id, status: "PENDING" },
+                data: { status: "PROCESSING", attempts: { increment: 1 }, lastAttemptAt: new Date() }
+            })
+        );
+
+        const results = await Promise.allSettled(claimPromises);
+        for (const result of results) {
+            if (result.status === "fulfilled" && result.value) {
+                claimedEvents.push(result.value as OutboxEvent);
+            }
+        }
+
+        const successfulIds: string[] = [];
+
+        for (const event of claimedEvents) {
             try {
-                // Claim it
-                const claimed = await prisma.outboxEvent.update({
-                    where: { id: event.id, status: "PENDING" },
-                    data: { status: "PROCESSING", attempts: { increment: 1 }, lastAttemptAt: new Date() }
-                });
-
-                if (!claimed) continue; // Someone else claimed it
-
                 // Dispatch to Redis/BullMQ reliably
                 await enqueueAutomationJob(event.payload as unknown as AutomationJobPayload);
 
-                // Mark complete
-                await prisma.outboxEvent.update({
-                    where: { id: event.id },
-                    data: { status: "COMPLETED" }
-                });
-
+                successfulIds.push(event.id);
             } catch (error) {
                 auditLogger.error({ eventId: event.id, error: (error as Error).message }, "Failed to process outbox event");
+                // Fallback: Individual fail update
                 await prisma.outboxEvent.update({
                     where: { id: event.id },
                     data: { status: "FAILED", error: (error as Error).message }
                 });
             }
+        }
+
+        // Bulk complete successful events
+        if (successfulIds.length > 0) {
+            await prisma.outboxEvent.updateMany({
+                where: { id: { in: successfulIds } },
+                data: { status: "COMPLETED" }
+            });
         }
     } catch (error) {
         auditLogger.error({ error: (error as Error).message }, "Outbox processor critical failure");
