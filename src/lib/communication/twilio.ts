@@ -5,11 +5,11 @@ export class TwilioProvider implements CommunicationProvider {
     private client: twilio.Twilio;
 
     constructor() {
-        const accountSid = process.env.TWILIO_ACCOUNT_SID || "AC_DUMMY";
-        const authToken = process.env.TWILIO_AUTH_TOKEN || "DUMMY";
+        const accountSid = process.env.TWILIO_ACCOUNT_SID;
+        const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-        if (accountSid === "AC_DUMMY" && process.env.NODE_ENV !== "test") {
-            console.warn("TWILIO_ACCOUNT_SID not set; TwilioProvider will fail in production.");
+        if (!accountSid || !authToken) {
+            throw new Error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set to use TwilioProvider");
         }
 
         this.client = twilio(accountSid, authToken);
