@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { requirePlatformAdmin } from "@/lib/auth/platform-authorization";
 import { requireAuthenticatedUser } from "@/lib/auth/authorization";
 import { OnboardingService } from "@/lib/services/onboarding";
 import { revalidatePath } from "next/cache";
@@ -7,13 +8,16 @@ import { redirect } from "next/navigation";
 
 export default async function AdminOnboardingPage() {
   const user = await requireAuthenticatedUser();
-  // Tenant isolation fix: ensure only superadmins can access this page.
-  // In our simplified setup, we'll check for a specific email or rely on a system role.
-  // For safety without a full global RBAC, we'll just deny access to all normal users by default
-  // unless they are explicitly authorized. Here, we'll mock it by checking an env var or a hardcoded list.
-  if (user.email !== "superadmin@estatescale.com") {
-      redirect("/api/auth/signin");
+
+  try {
+    await requirePlatformAdmin();
+  } catch (error: any) {
+    if (error.message && error.message.includes('NEXT_REDIRECT')) {
+      throw error;
+    }
+    redirect("/api/auth/signin");
   }
+
 
   const orgs = await prisma.organization.findMany({
     include: {
