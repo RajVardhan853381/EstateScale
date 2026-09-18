@@ -9,7 +9,7 @@ export class TwilioProvider implements CommunicationProvider {
         const authToken = process.env.TWILIO_AUTH_TOKEN;
 
         if (!accountSid || !authToken) {
-            throw new Error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set to use TwilioProvider");
+            throw new Error("Missing Twilio credentials (TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN).");
         }
 
         this.client = twilio(accountSid, authToken);
