@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
-import { prisma } from "@/lib/prisma";
-import { publishDomainEvent } from "@/lib/events/bus";
-import crypto from "crypto";
+import { handleInboundSms } from "@/lib/services/communication";
 
 export async function POST(req: Request) {
     try {
@@ -27,87 +25,13 @@ export async function POST(req: Request) {
         const body = data.Body;
         const externalId = data.MessageSid;
 
-        // Resolve Tenant
-        const config = await prisma.organizationCommunicationConfig.findFirst({
-            where: { phoneNumber: toPhone, isActive: true },
-            include: { organization: true }
-        });
-
-        if (!config) {
-            return NextResponse.json({ error: "No organization config found" }, { status: 404 });
-        }
-
-        const organizationId = config.organizationId;
-
-        // Resolve Contact natively safely inside boundary
-        let contact = await prisma.contact.findFirst({
-            where: { organizationId, phone: fromPhone }
-        });
-
-        if (!contact) {
-            contact = await prisma.contact.create({
-                data: { organizationId, phone: fromPhone, firstName: "Unknown" }
-            });
-        }
-
-        // Check for Lead
-        const lead = await prisma.lead.findFirst({
-            where: { organizationId, contactId: contact.id }
-        });
-
-        // Resolve Conversation Thread
-        let conversation = await prisma.conversation.findFirst({
-            where: { organizationId, contactId: contact.id }
-        });
-
-        if (!conversation) {
-            conversation = await prisma.conversation.create({
-                data: { organizationId, contactId: contact.id, leadId: lead?.id, channel: "SMS" }
-            });
-        }
-
-        // Handle native TCPA Opt-out payloads without AI invocation
-        const normalizedBody = body.trim().toLowerCase();
-        if (normalizedBody === "stop" || normalizedBody === "unsubscribe") {
-            await prisma.conversation.update({
-                where: { id: conversation.id, organizationId },
-                data: { status: "OPT_OUT" }
-            });
-        }
-
-        // Create the received record
-        await prisma.message.create({
-            data: {
-                organizationId,
-                conversationId: conversation.id,
-                direction: "INBOUND",
-                status: "RECEIVED",
-                provider: "TWILIO",
-                body,
-                from: fromPhone,
-                to: toPhone,
-                externalId
+        try {
+            await handleInboundSms(toPhone, fromPhone, body, externalId);
+        } catch (error: any) {
+            if (error.message === "No organization config found") {
+                return NextResponse.json({ error: error.message }, { status: 404 });
             }
-        });
-
-        // Create CRM Activity
-        if (lead) {
-            await prisma.leadActivity.create({
-                data: {
-                    organizationId,
-                    leadId: lead.id,
-                    type: "CONTACTED",
-                    description: `SMS Received: ${body}`
-                }
-            });
-
-            // Plumb through event bus for Phase 4 automation loops seamlessly
-            await publishDomainEvent({
-                eventId: crypto.randomUUID(),
-                organizationId,
-                leadId: lead.id,
-                type: "MESSAGE_RECEIVED"
-            });
+            throw error; // Re-throw for 500
         }
 
         // Return TwiML
