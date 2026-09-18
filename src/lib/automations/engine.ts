@@ -16,22 +16,25 @@ export async function evaluateAutomationsForEvent(event: DomainEvent) {
 
     if (automations.length === 0) return;
 
-    const fiveMinutesAgo = new Date(Date.now() - 300000);
-    const recentExecutions = await prisma.automationExecution.findMany({
-      where: {
-        organizationId: event.organizationId,
-        leadId: event.leadId,
-        automationId: { in: automations.map((a) => a.id) },
-        createdAt: { gte: fiveMinutesAgo },
-      },
-      select: { automationId: true },
-    });
-    const recentExecutionAutomationIds = new Set(recentExecutions.map((e) => e.automationId));
-
     for (const automation of automations) {
-      if (recentExecutionAutomationIds.has(automation.id)) continue;
-
       await prisma.$transaction(async (tx) => {
+        const executions = await tx.automationExecution.findMany({
+          where: {
+            organizationId: event.organizationId,
+            automationId: automation.id,
+            leadId: event.leadId,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        });
+
+        if (executions.length > 0) {
+          const lastExecution = executions[0];
+          if (Date.now() - lastExecution.createdAt.getTime() < 300000) {
+            return; // Prevent loops
+          }
+        }
+
         const execution = await tx.automationExecution.create({
           data: {
             organizationId: event.organizationId,
