@@ -11,198 +11,6 @@ type WizardProps = {
 
 const steps = ['COMPANY', 'USERS', 'CRM', 'IMPORT', 'AI', 'COMMUNICATION', 'REVIEW'];
 
-function CompanyStep() {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Company Details</h2>
-      <p className="text-gray-600 mb-6">Review your basic company settings.</p>
-      {/* Simple static view for now, as it's initialized */}
-      <div className="bg-gray-100 p-4 rounded text-sm">
-        Settings initialized. (Form would go here)
-      </div>
-    </div>
-  );
-}
-
-function UsersStep() {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Invite Team Members</h2>
-      <p className="text-gray-600 mb-6">Invite your agents and admins.</p>
-      <div className="bg-gray-100 p-4 rounded text-sm text-center">
-        (User Invitation Form would go here)
-      </div>
-    </div>
-  );
-}
-
-function CrmStep() {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">CRM Defaults</h2>
-      <p className="text-gray-600 mb-6">Configure your sales pipeline stages.</p>
-      <div className="bg-gray-100 p-4 rounded text-sm text-center">
-        Default Pipeline (NEW, CONTACTED, QUALIFIED...) configured.
-      </div>
-    </div>
-  );
-}
-
-function ImportStep({
-  slug,
-  file,
-  setFile,
-  isUploading,
-  setIsUploading,
-  uploadResult,
-  setUploadResult,
-}: {
-  slug: string;
-  file: File | null;
-  setFile: (f: File | null) => void;
-  isUploading: boolean;
-  setIsUploading: (b: boolean) => void;
-  uploadResult: {
-    totalRecords: number;
-    imported: number;
-    skipped: number;
-    failed: number;
-  } | null;
-  setUploadResult: (r: any) => void;
-}) {
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const uploadCsv = async () => {
-    if (!file) return;
-    setIsUploading(true);
-    setUploadResult(null);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const res = await fetch(`/api/onboarding/${slug}/import`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setUploadResult(data.job);
-      } else {
-        alert('Import failed: ' + data.error);
-      }
-    } catch (e) {
-      console.error('Upload error', e);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Import Leads</h2>
-      <p className="text-gray-600 mb-6">Upload a CSV file to import your existing leads.</p>
-
-      {uploadResult ? (
-        <div className="bg-green-50 p-6 rounded border border-green-200">
-          <h3 className="text-green-800 font-bold mb-2">Import Successful</h3>
-          <p>Total Processed: {uploadResult.totalRecords}</p>
-          <p>Imported: {uploadResult.imported}</p>
-          <p>Skipped: {uploadResult.skipped}</p>
-          <p>Failed: {uploadResult.failed}</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4 max-w-md">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-            className="block w-full border rounded p-2"
-          />
-          <button
-            onClick={uploadCsv}
-            disabled={!file || isUploading}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isUploading ? 'Uploading...' : 'Upload and Import'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AiStep({
-  aiEnabled,
-  setAiEnabled,
-}: {
-  aiEnabled: boolean;
-  setAiEnabled: (v: boolean) => void;
-}) {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">AI Configuration</h2>
-      <p className="text-gray-600 mb-6">Enable AI analysis and smart responses.</p>
-      <div className="flex items-center gap-4">
-        <input
-          type="checkbox"
-          id="ai-enable"
-          className="w-5 h-5"
-          checked={aiEnabled}
-          onChange={(e) => setAiEnabled(e.target.checked)}
-        />
-        <label htmlFor="ai-enable">Enable AI Features (Optional)</label>
-      </div>
-    </div>
-  );
-}
-
-function CommunicationStep({
-  smsEnabled,
-  setSmsEnabled,
-}: {
-  smsEnabled: boolean;
-  setSmsEnabled: (v: boolean) => void;
-}) {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Communication</h2>
-      <p className="text-gray-600 mb-6">Set up your SMS provider.</p>
-      <div className="flex items-center gap-4">
-        <input
-          type="checkbox"
-          id="sms-enable"
-          className="w-5 h-5"
-          checked={smsEnabled}
-          onChange={(e) => setSmsEnabled(e.target.checked)}
-        />
-        <label htmlFor="sms-enable">Enable SMS (Optional)</label>
-      </div>
-    </div>
-  );
-}
-
-function ReviewStep() {
-  return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Ready to Activate</h2>
-      <p className="text-gray-600 mb-6">Review your setup checklist.</p>
-      <ul className="list-disc pl-5 space-y-2 mb-8 text-gray-700">
-        <li className="text-green-600">Organization created</li>
-        <li className="text-green-600">Admin joined</li>
-        <li className="text-green-600">CRM Configured</li>
-        <li className="text-gray-500">Leads Imported (Optional)</li>
-        <li className="text-gray-500">AI Configured (Optional)</li>
-        <li className="text-gray-500">Communication Configured (Optional)</li>
-      </ul>
-    </div>
-  );
-}
-
 export function OnboardingWizard({ slug, initialState }: WizardProps) {
   const router = useRouter();
   const [currentStepIdx, setCurrentStepIdx] = useState(
@@ -258,6 +66,38 @@ export function OnboardingWizard({ slug, initialState }: WizardProps) {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const uploadCsv = async () => {
+    if (!file) return;
+    setIsUploading(true);
+    setUploadResult(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`/api/onboarding/${slug}/import`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUploadResult(data.job);
+      } else {
+        alert('Import failed: ' + data.error);
+      }
+    } catch (e) {
+      console.error('Upload error', e);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleActivate = async () => {
     setIsActivating(true);
     try {
@@ -298,23 +138,117 @@ export function OnboardingWizard({ slug, initialState }: WizardProps) {
       </div>
 
       <div className="p-8 min-h-[400px]">
-        {currentStep === 'COMPANY' && <CompanyStep />}
-        {currentStep === 'USERS' && <UsersStep />}
-        {currentStep === 'CRM' && <CrmStep />}
-        {currentStep === 'IMPORT' && (
-          <ImportStep
-            slug={slug}
-            file={file}
-            setFile={setFile}
-            isUploading={isUploading}
-            setIsUploading={setIsUploading}
-            uploadResult={uploadResult}
-            setUploadResult={setUploadResult}
-          />
+        {currentStep === 'COMPANY' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Company Details</h2>
+            <p className="text-gray-600 mb-6">Review your basic company settings.</p>
+            {/* Simple static view for now, as it's initialized */}
+            <div className="bg-gray-100 p-4 rounded text-sm">
+              Settings initialized. (Form would go here)
+            </div>
+          </div>
         )}
-        {currentStep === 'AI' && <AiStep aiEnabled={aiEnabled} setAiEnabled={setAiEnabled} />}
+
+        {currentStep === 'USERS' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Invite Team Members</h2>
+            <p className="text-gray-600 mb-6">Invite your agents and admins.</p>
+            <div className="bg-gray-100 p-4 rounded text-sm text-center">
+              (User Invitation Form would go here)
+            </div>
+          </div>
+        )}
+
+        {currentStep === 'CRM' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">CRM Defaults</h2>
+            <p className="text-gray-600 mb-6">Configure your sales pipeline stages.</p>
+            <div className="bg-gray-100 p-4 rounded text-sm text-center">
+              Default Pipeline (NEW, CONTACTED, QUALIFIED...) configured.
+            </div>
+          </div>
+        )}
+
+        {currentStep === 'IMPORT' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Import Leads</h2>
+            <p className="text-gray-600 mb-6">Upload a CSV file to import your existing leads.</p>
+
+            {uploadResult ? (
+              <div className="bg-green-50 p-6 rounded border border-green-200">
+                <h3 className="text-green-800 font-bold mb-2">Import Successful</h3>
+                <p>Total Processed: {uploadResult.totalRecords}</p>
+                <p>Imported: {uploadResult.imported}</p>
+                <p>Skipped: {uploadResult.skipped}</p>
+                <p>Failed: {uploadResult.failed}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 max-w-md">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="block w-full border rounded p-2"
+                />
+                <button
+                  onClick={uploadCsv}
+                  disabled={!file || isUploading}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isUploading ? 'Uploading...' : 'Upload and Import'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {currentStep === 'AI' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">AI Configuration</h2>
+            <p className="text-gray-600 mb-6">Enable AI analysis and smart responses.</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="checkbox"
+                id="ai-enable"
+                className="w-5 h-5"
+                checked={aiEnabled}
+                onChange={(e) => setAiEnabled(e.target.checked)}
+              />
+              <label htmlFor="ai-enable">Enable AI Features (Optional)</label>
+            </div>
+          </div>
+        )}
+
         {currentStep === 'COMMUNICATION' && (
-          <CommunicationStep smsEnabled={smsEnabled} setSmsEnabled={setSmsEnabled} />
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Communication</h2>
+            <p className="text-gray-600 mb-6">Set up your SMS provider.</p>
+            <div className="flex items-center gap-4">
+              <input
+                type="checkbox"
+                id="sms-enable"
+                className="w-5 h-5"
+                checked={smsEnabled}
+                onChange={(e) => setSmsEnabled(e.target.checked)}
+              />
+              <label htmlFor="sms-enable">Enable SMS (Optional)</label>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 'REVIEW' && (
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Ready to Activate</h2>
+            <p className="text-gray-600 mb-6">Review your setup checklist.</p>
+            <ul className="list-disc pl-5 space-y-2 mb-8 text-gray-700">
+              <li className="text-green-600">Organization created</li>
+              <li className="text-green-600">Admin joined</li>
+              <li className="text-green-600">CRM Configured</li>
+              <li className="text-gray-500">Leads Imported (Optional)</li>
+              <li className="text-gray-500">AI Configured (Optional)</li>
+              <li className="text-gray-500">Communication Configured (Optional)</li>
+            </ul>
+          </div>
         )}
         {currentStep === 'REVIEW' && <ReviewStep />}
       </div>
