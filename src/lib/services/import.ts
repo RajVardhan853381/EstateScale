@@ -57,6 +57,9 @@ export class ImportService {
       chunks.push(validRecords.slice(i, i + 50));
     }
 
+
+
+
     for (const chunk of chunks) {
       for (const record of chunk) {
         try {
