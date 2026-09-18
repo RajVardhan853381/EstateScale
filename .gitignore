@@ -7,5 +7,4 @@ test-results/
 .env.*
 !.env.example
 coverage/
-node_modules/
-.env
+tsconfig.tsbuildinfo
