@@ -1,9 +1,5 @@
-import { requireOrganizationMember } from "@/lib/auth/authorization";
-import { notFound } from "next/navigation";
-import {
-  Users, TrendingUp, Cpu, Bell, Calendar, ChevronDown, CheckCircle2,
-  Clock, ArrowUpRight, MessageSquare, Bot, Route, Check
-} from 'lucide-react';
+import { requireOrganizationMember } from '@/lib/auth/authorization';
+import { notFound } from 'next/navigation';
 
 export default async function OrganizationDashboard({
   params,
@@ -20,12 +16,12 @@ export default async function OrganizationDashboard({
     membership = result.membership;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      if (error.message.includes("NEXT_REDIRECT") || error.message.includes("signin")) {
+      if (error.message.includes('NEXT_REDIRECT') || error.message.includes('signin')) {
         throw error;
       }
       if (
-        error.message === "Organization not found" ||
-        error.message === "Forbidden: Not a member of this organization"
+        error.message === 'Organization not found' ||
+        error.message === 'Forbidden: Not a member of this organization'
       ) {
         notFound();
       }
@@ -53,47 +49,13 @@ export default async function OrganizationDashboard({
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">EstateScale Global Intelligence &bull; Real-time MLS Synced</span>
           </div>
-          <h1 className="text-2xl lg:text-[28px] font-bold text-slate-900 tracking-tight leading-tight">Executive CRM Workspace</h1>
-          <p className="text-slate-500 mt-1">Good morning, {'Elena'} 👋 &mdash; Portfolio velocity is running 18% ahead of target.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="h-10 px-4 flex items-center justify-center text-sm font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg shadow-sm transition-all">
-            Export Report
-          </button>
-          <button className="h-10 px-3 flex items-center justify-center text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm shadow-indigo-600/20 transition-all">
-            Quick Action <ChevronDown className="ml-2 w-4 h-4 opacity-80" />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Users className="w-16 h-16 text-indigo-600" /></div>
-          <div className="flex items-center justify-between mb-4 relative z-10">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active High-Ticket Leads</h3>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><Users className="w-4 h-4" /></div>
-          </div>
-          <div className="relative z-10">
-            <div className="flex items-baseline gap-3 mb-1">
-              <span className="text-3xl font-bold text-slate-900 tracking-tight">142</span>
-              <span className="inline-flex items-center text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">+18% this mo</span>
-            </div>
-            <p className="text-xs font-medium text-slate-500">42 high-intent &bull; $3.2M avg budget</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><TrendingUp className="w-16 h-16 text-indigo-600" /></div>
-          <div className="flex items-center justify-between mb-4 relative z-10">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Conversion Rate</h3>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><TrendingUp className="w-4 h-4" /></div>
-          </div>
-          <div className="relative z-10">
-            <div className="flex items-baseline gap-3 mb-1">
-              <span className="text-3xl font-bold text-slate-900 tracking-tight">24.8%</span>
-              <span className="inline-flex items-center text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">+4.2% vs Q3</span>
-            </div>
-            <p className="text-xs font-medium text-slate-500">Top tier among NYC boutique brokers</p>
+          <div className="p-6 pt-0">
+            <p>
+              Your role is: <strong>{membership.role}</strong>.
+            </p>
+            <p className="mt-4 text-gray-600">
+              This data is securely isolated to your organization.
+            </p>
           </div>
         </div>
 
