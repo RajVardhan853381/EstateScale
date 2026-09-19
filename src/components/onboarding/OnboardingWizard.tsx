@@ -250,7 +250,7 @@ export function OnboardingWizard({ slug, initialState }: WizardProps) {
             </ul>
           </div>
         )}
-        {currentStep === 'REVIEW' && <ReviewStep />}
+
       </div>
 
       <div className="bg-gray-50 p-4 border-t flex justify-between">
