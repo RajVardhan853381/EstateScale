@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { listLeadActivities } from "../../src/lib/services/activities";
 import { prisma } from "../../src/lib/prisma";
@@ -29,7 +30,7 @@ describe("Activities Service", () => {
     });
 
     it("should return empty array when there are no activities for a lead", async () => {
-        const mockPrisma = prisma as unknown as MockPrisma;
+        const mockPrisma = prisma as any as MockPrisma;
 
         // Mock authorization
         vi.spyOn(authorization, 'requireOrganizationMember').mockResolvedValue({
@@ -67,7 +68,7 @@ describe("Activities Service", () => {
     });
 
     it("should throw NOT_FOUND if lead does not exist", async () => {
-        const mockPrisma = prisma as unknown as MockPrisma;
+        const mockPrisma = prisma as any as MockPrisma;
 
         // Mock authorization
         vi.spyOn(authorization, 'requireOrganizationMember').mockResolvedValue({

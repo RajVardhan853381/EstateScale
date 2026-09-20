@@ -27,9 +27,9 @@ export async function POST(req: Request) {
 
         try {
             await handleInboundSms(toPhone, fromPhone, body, externalId);
-        } catch (error: any) {
-            if (error.message === "No organization config found") {
-                return NextResponse.json({ error: error.message }, { status: 404 });
+        } catch (error: unknown) {
+            if ((error as Error).message === "No organization config found") {
+                return NextResponse.json({ error: (error as Error).message }, { status: 404 });
             }
             throw error; // Re-throw for 500
         }

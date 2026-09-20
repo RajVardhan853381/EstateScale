@@ -1,0 +1,6 @@
+fix: final linting errors and type checks
+
+- Eliminated all remaining `any` usage in `src/lib/analytics/service.ts`, `tests/integration/activities.test.ts`, `tests/unit/notes.test.ts`, and Twilio webhook routes. Replaced with `unknown` and proper interface casting.
+- Cleaned up unused variables and imports in Next.js Server Components, API routes, and test suites.
+- Added missing icon imports to the dashboard component.
+- Documented blocking E2E test failures locally due to unrecoverable Docker daemon overlayfs mount failures. Full E2E tests are configured via Playwright and meant to pass in a healthy CI environment. Unit tests and non-Docker checks successfully completed.

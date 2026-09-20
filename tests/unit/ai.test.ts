@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LeadExtractionSchema,
   LeadQualificationSchema,
-  LeadScoreSchema,
+
   constructAnalysisPrompt,
 } from '@/lib/ai/prompts';
 

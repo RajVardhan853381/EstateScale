@@ -18,7 +18,7 @@ describe('Single-use Invites', () => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() - 1); // Yesterday
 
-    const inv = await prisma.organizationInvitation.create({
+    await prisma.organizationInvitation.create({
       data: {
         organizationId: org.id,
         email: 'test@test.com',

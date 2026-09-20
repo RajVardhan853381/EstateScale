@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { JourneyStepConfig, JourneyDefinitionSchema } from './types';
+import { JourneyDefinitionSchema } from './types';
 import { enqueueJourneyJob } from './queue';
 import { logger } from '@/lib/observability/logger';
 import { Prisma } from '@prisma/client';
@@ -68,8 +68,8 @@ export class JourneyEngine {
   static async stepCompleted(
     enrollmentId: string,
     currentStepId: string,
-    nextStepId?: string,
-    outputData?: Record<string, unknown>
+    nextStepId?: string
+
   ) {
     if (!nextStepId) {
       await prisma.journeyEnrollment.update({

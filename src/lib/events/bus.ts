@@ -1,5 +1,5 @@
-import { prisma } from '../prisma';
-import { enqueueAutomationJob } from '../queue/producer';
+
+
 import { evaluateAutomationsForEvent } from '../automations/engine';
 import { auditLogger } from '../observability/logger';
 
