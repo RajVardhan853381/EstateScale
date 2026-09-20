@@ -1,5 +1,6 @@
 import { requireOrganizationMember } from '@/lib/auth/authorization';
 import { notFound } from 'next/navigation';
+import { Cpu, Calendar, Bell } from 'lucide-react';
 
 export default async function OrganizationDashboard({
   params,
@@ -7,12 +8,12 @@ export default async function OrganizationDashboard({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  let organization;
+
   let membership;
 
   try {
     const result = await requireOrganizationMember(slug);
-    organization = result.organization;
+
     membership = result.membership;
   } catch (error: unknown) {
     if (error instanceof Error) {

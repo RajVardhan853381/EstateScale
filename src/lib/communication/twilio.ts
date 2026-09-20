@@ -54,7 +54,7 @@ export class TwilioProvider implements CommunicationProvider {
 }
 
 export class MockCommunicationProvider implements CommunicationProvider {
-  async sendSms(to: string, _from: string, body: string, _org: string): Promise<SendSmsResult> {
+  async sendSms(to: string, _from: string, body: string): Promise<SendSmsResult> {
     console.log(`[MockProvider] Sending SMS to ${to}: ${body}`);
     return { success: true, externalId: `mock_${Date.now()}` };
   }

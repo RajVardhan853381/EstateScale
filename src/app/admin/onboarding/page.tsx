@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { requirePlatformAdmin } from "@/lib/auth/platform-authorization";
 import { requireAuthenticatedUser } from "@/lib/auth/authorization";
 import { redirect } from "next/navigation";
 import { CreateOrgForm } from "./_components/create-org-form";
