@@ -17,16 +17,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    await prisma.organizationInvitation.create({
-      data: {
+    await prisma.organizationInvitation.upsert({
+      where: {
+        organizationId_email: {
+          organizationId: organization.id,
+          email: normalizedEmail,
+        },
+      },
+      update: {
+        token,
+        role,
+        status: 'PENDING',
+        expiresAt,
+      },
+      create: {
         organizationId: organization.id,
-        email,
+        email: normalizedEmail,
         role,
         token,
+        status: 'PENDING',
         expiresAt,
       },
     });
@@ -34,6 +48,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: 'Invitation created',
+      token,
+      inviteUrl: `/invite/${token}`,
     });
   } catch (error: unknown) {
     if (error instanceof Error) {

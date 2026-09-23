@@ -4,6 +4,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { rateLimiter } from '@/lib/security/rate-limiter';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -27,10 +28,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        const normalizedEmail = (credentials.email as string).toLowerCase().trim();
+        const limit = rateLimiter.check(`login:${normalizedEmail}`, 5, 60000);
+        if (!limit.success) {
+          console.warn(`[SecurityAudit] Rate limit exceeded for login attempts: ${normalizedEmail}`);
+          throw new Error('Too many login attempts. Please wait 1 minute.');
+        }
+
         try {
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+          const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+          });
 
         if (!user || !user.passwordHash) {
           return null;
@@ -42,13 +50,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // Reset rate limiter on successful authentication
+        rateLimiter.reset(`login:${normalizedEmail}`);
+
         return {
           id: user.id,
           email: user.email,
           name: user.name,
         };
-        } catch (error) {
-          console.error("Database connection error during login:", error);
+        } catch (error: unknown) {
+          if (error instanceof Error && error.message.includes('Too many login attempts')) {
+            throw error;
+          }
+          console.error("Database or authentication error during login:", error);
           return null;
         }
       },

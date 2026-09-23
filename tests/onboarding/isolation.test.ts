@@ -2,13 +2,17 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { prisma } from '../../src/lib/prisma';
 
 
+import { assertSafeTestDatabase } from '../test-db-guard';
+
 describe('Tenant Isolation Safety', () => {
   beforeEach(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
     await prisma.user.deleteMany();
   });
 
   afterAll(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
     await prisma.user.deleteMany();
   });

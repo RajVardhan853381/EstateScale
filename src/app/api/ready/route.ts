@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { redisClient } from '@/lib/queue/client';
+import { redisClient, isRedisConfigured } from '@/lib/queue/client';
 
 export async function GET() {
   try {
     const dbPromise = prisma.$queryRaw`SELECT 1`.catch(() => {
       throw new Error('DB Error');
     });
-    const redisPromise = redisClient.ping().catch(() => {
-      throw new Error('Redis Error');
-    });
+
+    const redisPromise = isRedisConfigured
+      ? redisClient.ping().catch(() => {
+          throw new Error('Redis Error');
+        })
+      : Promise.resolve('NOT_CONFIGURED');
 
     const results = await Promise.allSettled([
       Promise.race([
@@ -23,7 +26,11 @@ export async function GET() {
     ]);
 
     const dbStatus = results[0].status === 'fulfilled' ? 'UP' : 'DOWN';
-    const redisStatus = results[1].status === 'fulfilled' ? 'UP' : 'DOWN';
+    const redisStatus = !isRedisConfigured
+      ? 'NOT_CONFIGURED'
+      : results[1].status === 'fulfilled'
+        ? 'UP'
+        : 'DOWN';
 
     if (dbStatus === 'DOWN') {
       return NextResponse.json(

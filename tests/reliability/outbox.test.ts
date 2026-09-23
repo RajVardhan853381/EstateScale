@@ -1,32 +1,53 @@
 import { describe, it, expect, vi } from 'vitest';
-import { recoverStaleOutboxEvents } from '../../src/lib/queue/outbox-processor';
+import { recoverStaleJourneyExecutions } from '../../src/lib/journeys/worker';
+import { ImportService } from '../../src/lib/services/import';
 import { prisma } from '../../src/lib/prisma';
 
 vi.mock('../../src/lib/prisma', () => ({
   prisma: {
-    outboxEvent: {
+    journeyExecution: {
+      updateMany: vi.fn(),
+    },
+    importJob: {
       updateMany: vi.fn(),
     },
   },
 }));
 
-type MockPrisma = {
-  outboxEvent: { updateMany: (args: unknown) => void };
-};
+describe('Reliability: Stale Background Job Recovery', () => {
+  it('should recover stale RUNNING journey executions back to WAITING', async () => {
+    (prisma.journeyExecution.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 3 });
 
-describe('Outbox Stale Recovery', () => {
-  it('should recover processing jobs older than 5 minutes safely', async () => {
-    const mockPrisma = prisma as unknown as MockPrisma;
-    mockPrisma.outboxEvent.updateMany = vi.fn().mockResolvedValue({ count: 5 });
+    const recovered = await recoverStaleJourneyExecutions(10 * 60 * 1000);
+    expect(recovered).toBe(3);
+    expect(prisma.journeyExecution.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'RUNNING',
+          startedAt: expect.anything(),
+        }),
+        data: expect.objectContaining({
+          status: 'WAITING',
+          scheduledFor: expect.any(Date),
+        }),
+      })
+    );
+  });
 
-    await expect(recoverStaleOutboxEvents()).resolves.toBeUndefined();
-    expect(mockPrisma.outboxEvent.updateMany).toHaveBeenCalledWith(
+  it('should recover stale PROCESSING import jobs to FAILED', async () => {
+    (prisma.importJob.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 2 });
+
+    const recovered = await ImportService.recoverStaleImportJobs(15 * 60 * 1000);
+    expect(recovered).toBe(2);
+    expect(prisma.importJob.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           status: 'PROCESSING',
-          lastAttemptAt: expect.anything(),
+          createdAt: expect.anything(),
         }),
-        data: { status: 'PENDING' },
+        data: {
+          status: 'FAILED',
+        },
       })
     );
   });

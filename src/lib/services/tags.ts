@@ -85,20 +85,25 @@ export async function removeTagFromLead(slug: string, leadId: string, tagId: str
     });
     if (!tag) throw new Error('NOT_FOUND');
 
-    await tx.leadTag.delete({
+    const deleted = await tx.leadTag.deleteMany({
       where: {
-        leadId_tagId: { leadId, tagId },
+        leadId,
+        tagId,
       },
     });
 
-    await tx.leadActivity.create({
-      data: {
-        organizationId: organization.id,
-        leadId,
-        userId: membership.id,
-        type: LeadActivityType.TAG_REMOVED,
-        description: `Removed tag: ${tag.name}`,
-      },
-    });
+    if (deleted.count > 0) {
+      await tx.leadActivity.create({
+        data: {
+          organizationId: organization.id,
+          leadId,
+          userId: membership.id,
+          type: LeadActivityType.TAG_REMOVED,
+          description: `Removed tag: ${tag.name}`,
+        },
+      });
+    }
+
+    return { success: true, removed: deleted.count > 0 };
   });
 }

@@ -98,6 +98,17 @@ export class OnboardingService {
         await tx.template.createMany({ data: newTemplates });
       }
 
+      // Seed default communication config for SMS channel
+      const defaultPhone = process.env.TWILIO_PHONE_NUMBER || '+15550000000';
+      await tx.organizationCommunicationConfig.create({
+        data: {
+          organizationId: org.id,
+          phoneNumber: defaultPhone,
+          isActive: true,
+          provider: 'TWILIO',
+        },
+      });
+
       let invitation = null;
       if (data.adminEmail) {
         const token = crypto.randomBytes(32).toString('hex');

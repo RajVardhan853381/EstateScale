@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -25,7 +26,6 @@ model User {
 
 model Organization {
   templates       Template[]
-  outboxEvents    OutboxEvent[]
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
@@ -55,6 +55,12 @@ model Organization {
   journeys             Journey[]
   journeyEnrollments   JourneyEnrollment[]
   journeyExecutions    JourneyExecution[]
+  monthlyAiBudgetUsd   Float                 @default(50.00)
+  currentMonthAiSpend  Float                 @default(0.00)
+  aiQuotaExceeded      Boolean               @default(false)
+  aiSpendResetAt       DateTime              @default(now())
+  auditLogs            AuditLog[]
+  webhookSubscriptions WebhookSubscription[]
 }
 
 model OrganizationInvitation {
@@ -191,6 +197,8 @@ model Contact {
   lastName       String?
   email          String?
   phone          String?
+  deletedAt      DateTime?
+  deletedById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -201,6 +209,7 @@ model Contact {
 
   @@index([organizationId, email])
   @@index([organizationId, phone])
+  @@index([organizationId, deletedAt])
 }
 
 model Lead {
@@ -221,6 +230,8 @@ model Lead {
   timeline     String?
 
   notesText String?
+  deletedAt DateTime?
+  deletedById String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -245,6 +256,7 @@ model Lead {
   @@index([organizationId, assignedUserId])
   @@index([organizationId, source])
   @@index([organizationId, pipelineStageId])
+  @@index([organizationId, deletedAt])
 }
 
 model Pipeline {
@@ -474,7 +486,7 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, conversationId, createdAt])
-  @@index([organizationId, externalId])
+  @@unique([organizationId, externalId])
 }
 
 enum MessageDirection {
@@ -551,7 +563,7 @@ model JourneyEnrollment {
 
   executions JourneyExecution[]
 
-  @@unique([journeyId, leadId, status]) // Enforces "once_per_lead" policy structurally safely if pending/running
+  @@index([journeyId, leadId, status])
   @@index([organizationId, status])
   @@index([organizationId, leadId])
 }
@@ -576,20 +588,7 @@ model JourneyExecution {
   @@index([organizationId, enrollmentId, status])
   @@index([scheduledFor])
 }
-model OutboxEvent {
-  id             String   @id @default(uuid())
-  type           String
-  payload        Json
-  status         String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
-  attempts       Int      @default(0)
-  lastAttemptAt  DateTime?
-  error          String?
-  organizationId String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-}
 model Template {
   id             String   @id @default(cuid())
   organizationId String?  // Optional: Global System Template if null, custom Org Template if set.
@@ -613,4 +612,38 @@ model PlatformAdmin {
   updatedAt DateTime @updatedAt
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String?
+  ipAddress      String?
+  userAgent      String?
+  changes        Json?
+  createdAt      DateTime @default(now())
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
+}
+
+model WebhookSubscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  url            String
+  secretKey      String
+  events         String[]
+  isActive       Boolean  @default(true)
+  failureCount   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
 }

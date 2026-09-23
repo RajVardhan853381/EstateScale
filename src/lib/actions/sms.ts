@@ -3,12 +3,23 @@
 import { requireOrganizationMember } from '@/lib/auth/authorization';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { enqueueAutomationJob } from '@/lib/queue/producer';
+import { isRedisConfigured } from '@/lib/queue/client';
+import { executeSendSms } from '@/lib/services/communication';
+import { rateLimiter } from '@/lib/security/rate-limiter';
 import crypto from 'crypto';
 
 export async function triggerSmsSend(slug: string, leadId: string, body: string) {
   try {
     const { organization } = await requireOrganizationMember(slug);
+
+    // Rate limit: 20 messages per minute per organization
+    const limit = rateLimiter.check(`sms:${organization.id}`, 20, 60000);
+    if (!limit.success) {
+      return {
+        success: false,
+        error: `Rate limit exceeded. Please wait ${Math.ceil(limit.resetInMs / 1000)}s before dispatching more SMS.`,
+      };
+    }
 
     const lead = await prisma.lead.findFirst({
       where: { id: leadId, organizationId: organization.id },
@@ -27,7 +38,7 @@ export async function triggerSmsSend(slug: string, leadId: string, body: string)
         data: {
           organizationId: organization.id,
           leadId: lead.id,
-          contactId: lead.contactId || lead.id, // Fallback safely
+          contactId: lead.contactId || lead.contact.id,
           channel: 'SMS',
           status: 'ACTIVE',
         },
@@ -51,14 +62,19 @@ export async function triggerSmsSend(slug: string, leadId: string, body: string)
       },
     });
 
-    // Enqueue explicit MANUAL_SMS to avoid triggering AutomationExecution side-effects
-    await enqueueAutomationJob({
-      actionType: 'MANUAL_SMS',
-      organizationId: organization.id,
-      leadId: lead.id,
-      messageId: message.id,
-      eventId: crypto.randomUUID(),
-    });
+    // Send directly or enqueue if Redis is explicitly enabled
+    if (isRedisConfigured) {
+      const { enqueueAutomationJob } = await import('@/lib/queue/producer');
+      await enqueueAutomationJob({
+        actionType: 'MANUAL_SMS',
+        organizationId: organization.id,
+        leadId: lead.id,
+        messageId: message.id,
+        eventId: crypto.randomUUID(),
+      });
+    } else {
+      await executeSendSms(organization.id, lead.id, message.body, message.id);
+    }
 
     revalidatePath(`/org/${slug}/leads/${leadId}`);
     return { success: true };

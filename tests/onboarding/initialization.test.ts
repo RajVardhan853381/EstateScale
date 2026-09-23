@@ -2,12 +2,16 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { prisma } from '../../src/lib/prisma';
 import { OnboardingService } from '../../src/lib/services/onboarding';
 
+import { assertSafeTestDatabase } from '../test-db-guard';
+
 describe('Onboarding Initialization', () => {
   beforeEach(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
   });
 
   afterAll(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
   });
 

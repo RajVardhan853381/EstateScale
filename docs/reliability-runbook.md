@@ -14,7 +14,7 @@
 
 ## External Provider Degradation
 
-If an external API like OpenAI begins failing constantly:
+If an external API like Google Gemini begins failing constantly:
 
 - `CircuitBreaker` trips open and instantly rejects new tasks without waiting for timeouts.
 - Background worker tasks get exponential backoffs applied inside BullMQ parameters, deferring the processing to when the provider resolves their downtime.

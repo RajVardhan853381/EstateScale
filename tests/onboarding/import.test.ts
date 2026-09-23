@@ -2,12 +2,16 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { prisma } from '../../src/lib/prisma';
 import { ImportService } from '../../src/lib/services/import';
 
+import { assertSafeTestDatabase } from '../test-db-guard';
+
 describe('CSV Import Duplicate Logic', () => {
   beforeEach(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
   });
 
   afterAll(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
   });
 

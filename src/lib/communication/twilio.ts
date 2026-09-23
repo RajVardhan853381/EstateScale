@@ -1,5 +1,8 @@
 import twilio from 'twilio';
 import { CommunicationProvider, SendSmsResult } from './provider';
+import { CircuitBreaker } from '../reliability/circuit-breaker';
+
+const twilioCircuitBreaker = new CircuitBreaker(5, 30000);
 
 export class TwilioProvider implements CommunicationProvider {
   private client: twilio.Twilio;
@@ -26,12 +29,14 @@ export class TwilioProvider implements CommunicationProvider {
       // We append organization metadata dynamically letting webhooks map callbacks backwards deterministically
       const statusCallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000'}/api/webhooks/twilio/status?org=${organizationId}`;
 
-      const message = await this.client.messages.create({
-        body,
-        from,
-        to,
-        statusCallback: statusCallbackUrl,
-      });
+      const message = await twilioCircuitBreaker.execute(() =>
+        this.client.messages.create({
+          body,
+          from,
+          to,
+          statusCallback: statusCallbackUrl,
+        })
+      );
 
       return {
         success: true,

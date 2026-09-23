@@ -12,6 +12,7 @@ vi.mock('../../src/lib/prisma', () => ({
     },
     organizationMembership: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -20,7 +21,10 @@ import { prisma } from '../../src/lib/prisma';
 
 type MockPrisma = {
   organization: { findUnique: (args: unknown) => void };
-  organizationMembership: { findUnique: (args: unknown) => void };
+  organizationMembership: {
+    findUnique: (args: unknown) => void;
+    findFirst: (args: unknown) => void;
+  };
 };
 
 describe('Tenant Isolation & RBAC', () => {
@@ -41,7 +45,10 @@ describe('Tenant Isolation & RBAC', () => {
   it('requireRole should throw if user lacks permissions', async () => {
     const mockPrisma = prisma as unknown as MockPrisma;
     mockPrisma.organization.findUnique = vi.fn().mockResolvedValue({ id: 'org-1', slug: 'org-1' });
-    mockPrisma.organizationMembership.findUnique = vi.fn().mockResolvedValue({ role: 'MEMBER' });
+    mockPrisma.organizationMembership.findFirst = vi.fn().mockResolvedValue({
+      role: 'MEMBER',
+      organization: { id: 'org-1', slug: 'org-1' },
+    });
 
     await expect(requireRole('org-1', ['ADMIN', 'OWNER'])).rejects.toThrow(
       'Forbidden: Insufficient permissions'
@@ -51,7 +58,10 @@ describe('Tenant Isolation & RBAC', () => {
   it('requireRole should pass if user has correct permissions', async () => {
     const mockPrisma = prisma as unknown as MockPrisma;
     mockPrisma.organization.findUnique = vi.fn().mockResolvedValue({ id: 'org-1', slug: 'org-1' });
-    mockPrisma.organizationMembership.findUnique = vi.fn().mockResolvedValue({ role: 'OWNER' });
+    mockPrisma.organizationMembership.findFirst = vi.fn().mockResolvedValue({
+      role: 'OWNER',
+      organization: { id: 'org-1', slug: 'org-1' },
+    });
 
     const result = await requireRole('org-1', ['ADMIN', 'OWNER']);
     expect(result.membership.role).toBe('OWNER');

@@ -41,6 +41,51 @@ export async function POST(req: Request, props: { params: Promise<{ slug: string
         data: { settings: settingsPayload },
       });
 
+      if (step === 'COMMUNICATION') {
+        const commConfig = config as Record<string, unknown> | undefined;
+        const inputNumber = (commConfig?.phoneNumber as string)?.trim();
+        const phoneNumber =
+          inputNumber || process.env.TWILIO_PHONE_NUMBER || '+15550000000';
+        const isSmsActive = commConfig?.enabled !== false;
+
+        if (inputNumber && isSmsActive) {
+          const conflicting = await tx.organizationCommunicationConfig.findFirst({
+            where: {
+              phoneNumber: inputNumber,
+              isActive: true,
+              organizationId: { not: organization.id },
+            },
+            include: { organization: true },
+          });
+
+          if (conflicting) {
+            throw new Error(
+              `Phone number ${inputNumber} is already assigned to organization "${conflicting.organization.name}". Please provide a unique phone number.`
+            );
+          }
+        }
+
+        const existing = await tx.organizationCommunicationConfig.findFirst({
+          where: { organizationId: organization.id },
+        });
+
+        if (existing) {
+          await tx.organizationCommunicationConfig.update({
+            where: { id: existing.id },
+            data: { phoneNumber, isActive: isSmsActive },
+          });
+        } else {
+          await tx.organizationCommunicationConfig.create({
+            data: {
+              organizationId: organization.id,
+              phoneNumber,
+              isActive: isSmsActive,
+              provider: 'TWILIO',
+            },
+          });
+        }
+      }
+
       // Update setup state progress
       const setupState = await tx.organizationSetupState.findUnique({
         where: { organizationId: organization.id },

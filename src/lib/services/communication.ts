@@ -41,7 +41,7 @@ export async function executeSendSms(
       data: {
         organizationId,
         leadId,
-        contactId: lead.contactId || lead.id,
+        contactId: lead.contactId || lead.contact.id,
         channel: 'SMS',
       },
     });
@@ -177,29 +177,67 @@ export async function handleInboundSms(
     });
   }
 
+  // Idempotency: Deduplicate webhook retries using externalId (Twilio MessageSid)
+  if (externalId) {
+    const existingMessage = await prisma.message.findFirst({
+      where: { organizationId, externalId },
+    });
+    if (existingMessage) {
+      auditLogger.info(
+        { organizationId, externalId, messageId: existingMessage.id },
+        'Inbound SMS deduplicated; already processed'
+      );
+      return existingMessage;
+    }
+  }
+
   // Handle native TCPA Opt-out payloads without AI invocation
   const normalizedBody = body.trim().toLowerCase();
-  if (normalizedBody === 'stop' || normalizedBody === 'unsubscribe') {
+  const optOutKeywords = ['stop', 'unsubscribe', 'cancel', 'quit', 'end'];
+  if (optOutKeywords.includes(normalizedBody)) {
     await prisma.conversation.update({
       where: { id: conversation.id, organizationId },
       data: { status: 'OPT_OUT' },
     });
   }
 
-  // Create the received record
-  await prisma.message.create({
-    data: {
-      organizationId,
-      conversationId: conversation.id,
-      direction: 'INBOUND',
-      status: 'RECEIVED',
-      provider: 'TWILIO',
-      body,
-      from: fromPhone,
-      to: toPhone,
-      externalId,
-    },
-  });
+  // Create the received record with race-safe unique constraint handling
+  let createdMessage;
+  try {
+    createdMessage = await prisma.message.create({
+      data: {
+        organizationId,
+        conversationId: conversation.id,
+        direction: 'INBOUND',
+        status: 'RECEIVED',
+        provider: 'TWILIO',
+        body,
+        from: fromPhone,
+        to: toPhone,
+        externalId,
+      },
+    });
+  } catch (err: unknown) {
+    if (
+      externalId &&
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === 'P2002'
+    ) {
+      const existingMessage = await prisma.message.findFirst({
+        where: { organizationId, externalId },
+      });
+      if (existingMessage) {
+        auditLogger.info(
+          { organizationId, externalId, messageId: existingMessage.id },
+          'Inbound SMS deduplicated; already processed via unique constraint race'
+        );
+        return existingMessage;
+      }
+    }
+    throw err;
+  }
 
   // Create CRM Activity
   if (lead) {
@@ -220,4 +258,6 @@ export async function handleInboundSms(
       type: 'MESSAGE_RECEIVED',
     });
   }
+
+  return createdMessage;
 }

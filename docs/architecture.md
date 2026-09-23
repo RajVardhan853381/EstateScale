@@ -22,7 +22,7 @@ EstateScale utilizes a **Modular Monolith** architecture.
 
 ## AI Lead Engine
 
-- **Provider Abstraction**: Interacts safely with AI providers (OpenAI) via internal domain wrappers and the Vercel AI SDK.
+- **Provider Abstraction**: Interacts safely with AI providers (Google Gemini) via internal domain wrappers and the Vercel AI SDK.
 - **Cost Controls & Usage Tracking**: Tracks estimated cost and token usage per-tenant via the `AiUsage` model.
 - **Prompt Injection Defense**: Untrusted user contexts are explicitly physically separated from privileged System Instructions inside prompt construction mechanisms.
 

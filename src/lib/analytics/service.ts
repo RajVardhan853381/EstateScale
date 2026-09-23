@@ -1,31 +1,45 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from '@/lib/prisma';
-
-// Type abstractions to allow safe schema interactions over properties that typescript has lost due to partial schema merges or lack of direct compilation updates
-type PrismaDynamicMock = {
-  count: (args: unknown) => Promise<number>;
-  aggregate: (args: unknown) => Promise<{ _sum: { estimatedValue: number | null } }>;
-  groupBy: (args: unknown) => Promise<Array<any>>;
-};
+import { LeadStatus } from '@prisma/client';
 
 export class AnalyticsService {
   static async getDashboardMetrics(organizationId: string) {
     const [totalLeads, hotLeads, openOpportunities, wonOpportunities, pipelineValueAggr] =
       await Promise.all([
-        prisma.lead.count({ where: { organizationId } }),
-        (((prisma as unknown) as Record<string, any>).leadIntelligence as PrismaDynamicMock)?.count({
-          where: { organizationId, temperature: 'HOT' },
-        }) ?? Promise.resolve(0),
-        (((prisma as unknown) as Record<string, any>).opportunity as PrismaDynamicMock)?.count({
-          where: { organizationId, stage: { notIn: ['CLOSED_WON', 'CLOSED_LOST'] } },
-        }) ?? Promise.resolve(0),
-        (((prisma as unknown) as Record<string, any>).opportunity as PrismaDynamicMock)?.count({
-          where: { organizationId, stage: 'CLOSED_WON' },
-        }) ?? Promise.resolve(0),
-        (((prisma as unknown) as Record<string, any>).opportunity as PrismaDynamicMock)?.aggregate({
-          where: { organizationId, stage: { notIn: ['CLOSED_WON', 'CLOSED_LOST'] } },
-          _sum: { estimatedValue: true },
-        }) ?? Promise.resolve({ _sum: { estimatedValue: 0 } }),
+        prisma.lead.count({
+          where: { organizationId, deletedAt: null },
+        }),
+        prisma.lead.count({
+          where: {
+            organizationId,
+            deletedAt: null,
+            OR: [
+              { score: { gte: 80 } },
+              { aiAssessments: { some: { qualificationStatus: 'HOT' } } },
+            ],
+          },
+        }),
+        prisma.lead.count({
+          where: {
+            organizationId,
+            deletedAt: null,
+            status: { notIn: [LeadStatus.CLOSED_WON, LeadStatus.CLOSED_LOST] },
+          },
+        }),
+        prisma.lead.count({
+          where: {
+            organizationId,
+            deletedAt: null,
+            status: LeadStatus.CLOSED_WON,
+          },
+        }),
+        prisma.lead.aggregate({
+          where: {
+            organizationId,
+            deletedAt: null,
+            status: { notIn: [LeadStatus.CLOSED_WON, LeadStatus.CLOSED_LOST] },
+          },
+          _sum: { budget: true },
+        }),
       ]);
 
     return {
@@ -36,7 +50,7 @@ export class AnalyticsService {
       pipeline: {
         openOpportunities,
         wonOpportunities,
-        value: pipelineValueAggr._sum.estimatedValue || 0,
+        value: pipelineValueAggr?._sum?.budget || 0,
       },
     };
   }
@@ -44,26 +58,27 @@ export class AnalyticsService {
   static async getLeadFunnel(organizationId: string) {
     const rawLeads = await prisma.lead.groupBy({
       by: ['status'],
-      where: { organizationId },
+      where: { organizationId, deletedAt: null },
       _count: true,
     });
 
-    const opportunities =
-      (await (((prisma as unknown) as Record<string, any>).opportunity as PrismaDynamicMock)?.groupBy({
-        by: ['stage'],
-        where: { organizationId },
-        _count: true,
-      })) ?? [];
+    const leadsByStatus = rawLeads.reduce(
+      (acc: Record<string, number>, curr) => ({ ...acc, [curr.status]: curr._count }),
+      {}
+    );
+
+    const openDeals = rawLeads
+      .filter((l) => l.status === 'APPOINTMENT_BOOKED' || l.status === 'FOLLOW_UP')
+      .reduce((sum, l) => sum + l._count, 0);
+
+    const wonDeals = leadsByStatus['CLOSED_WON'] || 0;
 
     return {
-      leadsByStatus: rawLeads.reduce(
-        (acc: Record<string, number>, curr: any) => ({ ...acc, [curr.status]: curr._count }),
-        {}
-      ),
-      opportunitiesByStage: opportunities.reduce(
-        (acc: Record<string, number>, curr: any) => ({ ...acc, [curr.stage]: curr._count }),
-        {}
-      ),
+      leadsByStatus,
+      opportunitiesByStage: {
+        NEGOTIATION: openDeals,
+        CLOSED_WON: wonDeals,
+      },
     };
   }
 
@@ -75,26 +90,19 @@ export class AnalyticsService {
 
     const agentIds = agents.map((a) => a.id);
 
-    const assignedLeads = await prisma.lead.groupBy({
-      by: ['assignedUserId'],
-      where: { organizationId, assignedUserId: { in: agentIds } },
+    const leadGroups = await prisma.lead.groupBy({
+      by: ['assignedUserId', 'status'],
+      where: { organizationId, deletedAt: null, assignedUserId: { in: agentIds } },
       _count: true,
     });
 
-    const opps =
-      (await (((prisma as unknown) as Record<string, any>).opportunity as PrismaDynamicMock)?.groupBy({
-        by: ['agentId', 'stage'],
-        where: { organizationId, agentId: { in: agentIds } },
-        _count: true,
-      })) ?? [];
-
     return agents.map((agent) => {
-      const assignedCount = assignedLeads.find((l) => l.assignedUserId === agent.id)?._count || 0;
-      const agentOpps = opps.filter((o: { agentId?: string, stage?: string, _count: number }) => o.agentId === agent.id);
-      const wonDeals = agentOpps.find((o: { agentId?: string, stage?: string, _count: number }) => o.stage === 'CLOSED_WON')?._count || 0;
-      const openDeals = agentOpps
-        .filter((o: { agentId?: string, stage?: string, _count: number }) => o.stage !== 'CLOSED_WON' && o.stage !== 'CLOSED_LOST')
-        .reduce((sum: number, o: any) => sum + o._count, 0);
+      const agentLeads = leadGroups.filter((l) => l.assignedUserId === agent.id);
+      const assignedCount = agentLeads.reduce((sum, l) => sum + l._count, 0);
+      const wonDeals = agentLeads.find((l) => l.status === 'CLOSED_WON')?._count || 0;
+      const openDeals = agentLeads
+        .filter((l) => l.status !== 'CLOSED_WON' && l.status !== 'CLOSED_LOST')
+        .reduce((sum, l) => sum + l._count, 0);
 
       return {
         agentId: agent.id,
@@ -125,3 +133,4 @@ export class AnalyticsService {
     }));
   }
 }
+

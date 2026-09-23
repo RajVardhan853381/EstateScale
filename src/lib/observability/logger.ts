@@ -1,17 +1,31 @@
+import { getRequestContext } from './context';
+
+function formatLog(level: string, obj: Record<string, unknown>, msg: string, type?: string) {
+  const ctx = getRequestContext();
+  return JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    ...(type ? { type } : {}),
+    ...(ctx.requestId ? { traceId: ctx.requestId } : {}),
+    ...(ctx.organizationId ? { organizationId: ctx.organizationId } : {}),
+    ...(ctx.userId ? { userId: ctx.userId } : {}),
+    msg,
+    ...obj,
+  });
+}
+
 export const logger = {
-  info: (obj: Record<string, unknown>, msg: string) =>
-    console.log(JSON.stringify({ level: 'info', msg, ...obj })),
-  error: (obj: Record<string, unknown>, msg: string) =>
-    console.error(JSON.stringify({ level: 'error', msg, ...obj })),
-  warn: (obj: Record<string, unknown>, msg: string) =>
-    console.warn(JSON.stringify({ level: 'warn', msg, ...obj })),
+  info: (obj: Record<string, unknown>, msg: string) => console.log(formatLog('info', obj, msg)),
+  error: (obj: Record<string, unknown>, msg: string) => console.error(formatLog('error', obj, msg)),
+  warn: (obj: Record<string, unknown>, msg: string) => console.warn(formatLog('warn', obj, msg)),
 };
 
 export const auditLogger = {
   info: (obj: Record<string, unknown>, msg: string) =>
-    console.log(JSON.stringify({ level: 'info', type: 'audit_event', msg, ...obj })),
+    console.log(formatLog('info', obj, msg, 'audit_event')),
   error: (obj: Record<string, unknown>, msg: string) =>
-    console.error(JSON.stringify({ level: 'error', type: 'audit_event', msg, ...obj })),
+    console.error(formatLog('error', obj, msg, 'audit_event')),
   warn: (obj: Record<string, unknown>, msg: string) =>
-    console.warn(JSON.stringify({ level: 'warn', type: 'audit_event', msg, ...obj })),
+    console.warn(formatLog('warn', obj, msg, 'audit_event')),
 };
+

@@ -6,10 +6,16 @@ import {
   AutomatedSmsJobPayload,
   AiAnalysisJobPayload,
 } from './lib/queue/producer';
-import { redisClient } from './lib/queue/client';
+import { redisClient, isRedisConfigured } from './lib/queue/client';
 import { prisma } from './lib/prisma';
 import { analyzeLead } from './lib/services/ai';
 import { executeSendSms } from './lib/services/communication';
+import { startJourneyWorker } from './lib/journeys/worker';
+
+if (!isRedisConfigured) {
+  console.log('ℹ️ Redis is not configured (REDIS_URL not set). In zero-Redis mode, EstateScale executes tasks directly in-app. Worker is not required.');
+  process.exit(0);
+}
 
 console.log('🚀 Starting EstateScale Background Worker process...');
 
@@ -114,15 +120,22 @@ async function performInternalAutomatedSMS(organizationId: string, leadId: strin
   const org = await prisma.organization.findUnique({ where: { id: organizationId } });
   if (!org) throw new Error('Org not found');
 
-  // We fetch the most recently suggested AI response if one exists as the automated content
+  // We fetch the most recently suggested AI response if one exists as the automated content,
+  // or dynamically generate a fresh outreach response draft using Tier 1 Gemini 3.8 Flash
   const assessment = await prisma.aiAssessment.findFirst({
     where: { organizationId, leadId },
     orderBy: { createdAt: 'desc' },
   });
 
-  const body =
-    assessment?.suggestedResponse ||
-    'Hello! Thanks for reaching out. An agent will be with you shortly.';
+  let body = assessment?.suggestedResponse;
+  if (!body) {
+    try {
+      const { generateOutreachResponse } = await import('./lib/services/ai');
+      body = await generateOutreachResponse(organizationId, leadId);
+    } catch {
+      body = 'Hello! Thanks for reaching out. An agent will be with you shortly.';
+    }
+  }
 
   await executeSendSms(organizationId, leadId, body);
 }
@@ -140,9 +153,23 @@ worker.on('failed', (job, err) => {
   console.error(`❌ [Worker] Job ${job?.id} failed with error: ${err.message}`);
 });
 
+const journeyWorker = startJourneyWorker();
+if (journeyWorker) {
+  console.log('🚀 [JourneyWorker] Journey BullMQ worker started.');
+  journeyWorker.on('completed', (job) => {
+    console.log(`✅ [JourneyWorker] Job ${job.id} completed successfully.`);
+  });
+  journeyWorker.on('failed', (job, err) => {
+    console.error(`❌ [JourneyWorker] Job ${job?.id} failed with error: ${err?.message}`);
+  });
+}
+
 const shutdown = async () => {
-  console.log('Shutting down worker gracefully...');
-  await worker.close();
+  console.log('Shutting down workers gracefully...');
+  await Promise.all([
+    worker.close(),
+    journeyWorker ? journeyWorker.close() : Promise.resolve(),
+  ]);
   await redisClient.quit();
   process.exit(0);
 };

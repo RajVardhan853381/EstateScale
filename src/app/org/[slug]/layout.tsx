@@ -1,6 +1,8 @@
-import Link from 'next/link';
 import { ReactNode } from 'react';
 import { requireOrganizationMember } from '@/lib/auth/authorization';
+import { prisma } from '@/lib/prisma';
+import { OrgSidebar } from '@/components/layout/OrgSidebar';
+import { redirect, notFound } from 'next/navigation';
 
 export default async function OrganizationLayout(props: {
   children: ReactNode;
@@ -8,47 +10,47 @@ export default async function OrganizationLayout(props: {
 }) {
   const { slug } = await props.params;
 
-  let organization;
+  let result;
   try {
-    const result = await requireOrganizationMember(slug);
-    organization = result.organization;
+    result = await requireOrganizationMember(slug);
   } catch (error: unknown) {
-    if (
-      error instanceof Error &&
-      (error.message.includes('NEXT_REDIRECT') || error.message.includes('signin'))
-    ) {
-      throw error;
+    if (error instanceof Error) {
+      if (error.message.includes('NEXT_REDIRECT')) {
+        throw error;
+      }
+      if (error.message.includes('Organization not found')) {
+        notFound();
+      }
+      if (error.message.includes('Forbidden') || error.message.includes('Not a member')) {
+        redirect('/org/select');
+      }
     }
-    // Let page components handle the rest
+    redirect(`/login?callbackUrl=/org/${slug}`);
+  }
+
+  const { organization, user, membership } = result;
+
+  let isPlatformAdmin = false;
+  if (user?.id) {
+    const pa = await prisma.platformAdmin.findUnique({
+      where: { userId: user.id },
+    });
+    isPlatformAdmin = !!pa;
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-900 font-sans">
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-gray-200 font-semibold text-lg">
-          {organization?.name || 'EstateScale'}
+    <div className="flex h-screen bg-[#F8F9FF] text-slate-900 overflow-hidden">
+      <OrgSidebar
+        slug={slug}
+        orgName={organization.name}
+        userEmail={user.email || ''}
+        userRole={membership.role}
+        isPlatformAdmin={isPlatformAdmin}
+      />
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <div className="flex-1">
+          {props.children}
         </div>
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link
-            href={`/org/${slug}/dashboard`}
-            className="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-700"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href={`/org/${slug}/leads`}
-            className="flex items-center px-2 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-700"
-          >
-            Leads
-          </Link>
-        </nav>
-      </aside>
-
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 justify-between md:hidden">
-          <div className="font-semibold">{organization?.name || 'EstateScale'}</div>
-        </header>
-        <div className="flex-1 overflow-auto bg-gray-50">{props.children}</div>
       </main>
     </div>
   );

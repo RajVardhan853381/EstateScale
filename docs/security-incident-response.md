@@ -6,7 +6,7 @@ This outlines the expected response process when a security anomaly is detected 
 
 - **Disable Sessions**: Rotate active authentication secrets in `.env` to invalidate all active JWTs and session tokens.
 - **Tenant Lockout**: Deactivate targeted organizations by toggling their setup/activation state if isolated malicious traffic is observed.
-- **Pause AI Operations**: Cut off outbound integration to OpenAI (or similar) to prevent arbitrary unbounded token usage or unauthorized data exfiltration.
+- **Pause AI Operations**: Cut off outbound integration to Google Gemini (or similar) to prevent arbitrary unbounded token usage or unauthorized data exfiltration.
 
 ## 2. Investigation & Auditing
 

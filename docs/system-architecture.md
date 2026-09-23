@@ -10,7 +10,7 @@ EstateScale is designed as a **Modular Monolith** optimizing for multi-tenancy (
 
 ## 2. Integrated Product Modules
 
-- **CRM / Intelligence**: Leads are ingested, automatically routed to the AI Provider abstraction (e.g. OpenAI), scored, and re-persisted.
+- **CRM / Intelligence**: Leads are ingested, automatically routed to the AI Provider abstraction (e.g. Google Gemini Flash 3.8), scored, and re-persisted.
 - **Automations / Journeys**: `EventBus` traps entity mutations, queues them into BullMQ, and a durable worker executes branching steps safely tracking idempotency in PostgreSQL (`JourneyExecution`).
 - **Communications**: SMS (Twilio) payloads execute out of the worker process relying on a strictly locked Transactional Outbox processor (`OutboxEvent` -> `redisClient`).
 

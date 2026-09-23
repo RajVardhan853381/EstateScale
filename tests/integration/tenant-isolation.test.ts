@@ -8,6 +8,8 @@ vi.mock('next-auth', () => ({
 }));
 import * as authorization from '@/lib/auth/authorization';
 
+import { assertSafeTestDatabase } from '../test-db-guard';
+
 describe('Tenant Isolation - CRM', () => {
   let orgA: Organization;
   let orgB: Organization;
@@ -15,6 +17,7 @@ describe('Tenant Isolation - CRM', () => {
   let userB: User;
 
   beforeAll(async () => {
+    assertSafeTestDatabase();
     // Clear DB
     await prisma.organization.deleteMany();
     await prisma.user.deleteMany();
@@ -40,6 +43,7 @@ describe('Tenant Isolation - CRM', () => {
   });
 
   afterAll(async () => {
+    assertSafeTestDatabase();
     await prisma.organization.deleteMany();
     await prisma.user.deleteMany();
   });

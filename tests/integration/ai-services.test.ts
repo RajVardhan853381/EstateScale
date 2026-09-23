@@ -142,6 +142,7 @@ describe('AI Core Service Integrations', () => {
     expect(assessment.score).toBe(90);
     expect(assessment.qualificationStatus).toBe('HOT');
     expect(assessment.intent).toBe('BUY');
+    expect(assessment.model).toBe('gemini-3.8-flash');
 
     // Verify the lead itself mutated safely
     const updatedLead = await prisma.lead.findUnique({ where: { id: leadA.id } });
@@ -154,6 +155,8 @@ describe('AI Core Service Integrations', () => {
     // Verify usages logged
     const usages = await prisma.aiUsage.findMany({ where: { organizationId: orgA.id } });
     expect(usages.length).toBe(1);
+    expect(usages[0].provider).toBe('gemini');
+    expect(usages[0].model).toBe('gemini-3.8-flash');
 
     vi.restoreAllMocks();
   });

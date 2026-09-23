@@ -1,13 +1,17 @@
 import { prisma } from '@/lib/prisma';
 import { leadSchema, paginationSchema, updateLeadSchema } from '@/lib/validations/crm';
 import { requireOrganizationMember } from '@/lib/auth/authorization';
+import { validateLeadStatusTransition } from '@/lib/domain/lead-state-machine';
+import { recordAuditLog } from '@/lib/services/audit';
+import { publishDomainEvent } from '@/lib/events/bus';
 import { LeadActivityType, LeadStatus, Prisma } from '@prisma/client';
+import crypto from 'crypto';
 
 export async function createLead(slug: string, data: unknown) {
   const { organization, membership } = await requireOrganizationMember(slug);
   const validated = leadSchema.parse(data);
 
-  return await prisma.$transaction(async (tx) => {
+  const lead = await prisma.$transaction(async (tx) => {
     let finalContactId = validated.contactId;
 
     if (!finalContactId && validated.contact) {
@@ -98,6 +102,21 @@ export async function createLead(slug: string, data: unknown) {
 
     return lead;
   });
+
+  await publishDomainEvent({
+    eventId: crypto.randomUUID(),
+    organizationId: organization.id,
+    leadId: lead.id,
+    type: 'LEAD_CREATED',
+    metadata: {
+      status: lead.status,
+      source: lead.source,
+      score: lead.score,
+      intent: lead.intent,
+    },
+  });
+
+  return lead;
 }
 
 export async function getLead(slug: string, leadId: string) {
@@ -107,6 +126,7 @@ export async function getLead(slug: string, leadId: string) {
     where: {
       id: leadId,
       organizationId: organization.id,
+      deletedAt: null,
     },
     include: {
       contact: true,
@@ -145,6 +165,7 @@ export async function listLeads(slug: string, queryParams: Record<string, unknow
 
   const whereClause: Prisma.LeadWhereInput = {
     organizationId: organization.id,
+    deletedAt: null,
   };
 
   if (typeof queryParams.status === 'string') whereClause.status = queryParams.status as LeadStatus;
@@ -175,6 +196,10 @@ export async function listLeads(slug: string, queryParams: Record<string, unknow
         contact: true,
         assignedUser: { include: { user: true } },
         pipelineStage: true,
+        aiAssessments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
         activities: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -201,7 +226,7 @@ export async function updateLead(slug: string, data: unknown) {
   const { organization, membership } = await requireOrganizationMember(slug);
   const validated = updateLeadSchema.parse(data);
 
-  return await prisma.$transaction(async (tx) => {
+  const lead = await prisma.$transaction(async (tx) => {
     const existingLead = await tx.lead.findFirst({
       where: { id: validated.id, organizationId: organization.id },
     });
@@ -232,6 +257,21 @@ export async function updateLead(slug: string, data: unknown) {
 
     return lead;
   });
+
+  await publishDomainEvent({
+    eventId: crypto.randomUUID(),
+    organizationId: organization.id,
+    leadId: lead.id,
+    type: 'LEAD_UPDATED',
+    metadata: {
+      score: lead.score,
+      intent: lead.intent,
+      budget: lead.budget,
+      timeline: lead.timeline,
+    },
+  });
+
+  return lead;
 }
 
 export async function assignLead(slug: string, leadId: string, assignedUserId: string | null) {
@@ -275,7 +315,7 @@ export async function assignLead(slug: string, leadId: string, assignedUserId: s
 export async function changeLeadStage(slug: string, leadId: string, pipelineStageId: string) {
   const { organization, membership } = await requireOrganizationMember(slug);
 
-  return await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const existingLead = await tx.lead.findFirst({
       where: { id: leadId, organizationId: organization.id },
     });
@@ -311,6 +351,147 @@ export async function changeLeadStage(slug: string, leadId: string, pipelineStag
       },
     });
 
-    return lead;
+    return { lead, stageName: stage.name };
   });
+
+  await publishDomainEvent({
+    eventId: crypto.randomUUID(),
+    organizationId: organization.id,
+    leadId: result.lead.id,
+    type: 'LEAD_STAGE_CHANGED',
+    metadata: {
+      pipelineStageId,
+      stageName: result.stageName,
+    },
+  });
+
+  return result.lead;
 }
+
+export async function updateLeadStatus(slug: string, leadId: string, status: LeadStatus) {
+  const { organization, membership } = await requireOrganizationMember(slug);
+
+  const existingLead = await prisma.lead.findFirst({
+    where: { id: leadId, organizationId: organization.id, deletedAt: null },
+  });
+
+  if (!existingLead) throw new Error('NOT_FOUND');
+
+  // Validate state transition invariant
+  validateLeadStatusTransition(existingLead.status, status);
+
+  const lead = await prisma.lead.update({
+    where: { id: leadId },
+    data: { status },
+  });
+
+  await prisma.leadActivity.create({
+    data: {
+      organizationId: organization.id,
+      leadId: lead.id,
+      userId: membership.id,
+      type: LeadActivityType.STATUS_CHANGED,
+      description: `Status changed to ${status}`,
+    },
+  });
+
+  // Record audit log
+  await recordAuditLog({
+    organizationId: organization.id,
+    userId: membership.userId,
+    action: 'LEAD_STATUS_UPDATED',
+    entityType: 'Lead',
+    entityId: lead.id,
+    changes: { previousStatus: existingLead.status, newStatus: status },
+  });
+
+  await publishDomainEvent({
+    eventId: crypto.randomUUID(),
+    organizationId: organization.id,
+    leadId: lead.id,
+    type: 'LEAD_UPDATED',
+    metadata: {
+      status: lead.status,
+      previousStatus: existingLead.status,
+    },
+  });
+
+  return lead;
+}
+
+export async function softDeleteLead(slug: string, leadId: string) {
+  const { organization, membership } = await requireOrganizationMember(slug);
+
+  const existingLead = await prisma.lead.findFirst({
+    where: { id: leadId, organizationId: organization.id, deletedAt: null },
+  });
+
+  if (!existingLead) throw new Error('NOT_FOUND');
+
+  const lead = await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      deletedAt: new Date(),
+      deletedById: membership.userId,
+    },
+  });
+
+  await prisma.leadActivity.create({
+    data: {
+      organizationId: organization.id,
+      leadId: lead.id,
+      userId: membership.id,
+      type: LeadActivityType.UPDATED,
+      description: 'Lead soft-deleted and archived',
+    },
+  });
+
+  await recordAuditLog({
+    organizationId: organization.id,
+    userId: membership.userId,
+    action: 'LEAD_SOFT_DELETED',
+    entityType: 'Lead',
+    entityId: lead.id,
+  });
+
+  return lead;
+}
+
+export async function restoreLead(slug: string, leadId: string) {
+  const { organization, membership } = await requireOrganizationMember(slug);
+
+  const existingLead = await prisma.lead.findFirst({
+    where: { id: leadId, organizationId: organization.id, deletedAt: { not: null } },
+  });
+
+  if (!existingLead) throw new Error('NOT_FOUND');
+
+  const lead = await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      deletedAt: null,
+      deletedById: null,
+    },
+  });
+
+  await prisma.leadActivity.create({
+    data: {
+      organizationId: organization.id,
+      leadId: lead.id,
+      userId: membership.id,
+      type: LeadActivityType.UPDATED,
+      description: 'Lead restored from archive',
+    },
+  });
+
+  await recordAuditLog({
+    organizationId: organization.id,
+    userId: membership.userId,
+    action: 'LEAD_RESTORED',
+    entityType: 'Lead',
+    entityId: lead.id,
+  });
+
+  return lead;
+}
+

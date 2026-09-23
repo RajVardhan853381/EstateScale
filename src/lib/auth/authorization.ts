@@ -1,50 +1,52 @@
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import type { OrganizationMembership } from '@prisma/client';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const session = await auth();
   return session?.user;
-}
+});
 
-export async function requireAuthenticatedUser() {
+export async function requireAuthenticatedUser(callbackUrl?: string) {
   const user = await getCurrentUser();
   if (!user) {
-    redirect('/api/auth/signin');
+    redirect(callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : '/login');
   }
   return user;
 }
 
-export async function getCurrentOrganization(slug: string) {
+export const getCurrentOrganization = cache(async (slug: string) => {
   const org = await prisma.organization.findUnique({
     where: { slug },
   });
   return org;
-}
+});
 
-export async function requireOrganizationMember(slug: string) {
+export const requireOrganizationMember = cache(async (slug: string) => {
   const user = await requireAuthenticatedUser();
-  const organization = await getCurrentOrganization(slug);
 
-  if (!organization) {
-    throw new Error('Organization not found');
-  }
-
-  const membership = await prisma.organizationMembership.findUnique({
+  // Optimized single-roundtrip query joining organization and membership
+  const membership = await prisma.organizationMembership.findFirst({
     where: {
-      userId_organizationId: {
-        userId: user.id!,
-        organizationId: organization.id,
-      },
+      userId: user.id!,
+      organization: { slug },
     },
+    include: { organization: true },
   });
 
-  if (!membership) {
+  if (!membership || !membership.organization) {
+    const org = await getCurrentOrganization(slug);
+    if (!org) {
+      throw new Error('Organization not found');
+    }
     throw new Error('Forbidden: Not a member of this organization');
   }
 
-  return { user, organization, membership };
-}
+  const { organization, ...membershipData } = membership;
+  return { user, organization, membership: membershipData as OrganizationMembership };
+});
 
 export async function requireRole(slug: string, allowedRoles: string[]) {
   const { user, organization, membership } = await requireOrganizationMember(slug);
